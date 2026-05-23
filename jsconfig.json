@@ -1,0 +1,50 @@
+{
+    "compilerOptions": {
+        "baseUrl": ".",
+        "paths": {
+            "@/*": [
+                "src/*"
+            ],
+            "@app/*": [
+                "src/app/*"
+            ],
+            "@components/*": [
+                "src/components/*"
+            ],
+            "@features/*": [
+                "src/features/*"
+            ],
+            "@layouts/*": [
+                "src/layouts/*"
+            ],
+            "@services/*": [
+                "src/services/*"
+            ],
+            "@store/*": [
+                "src/store/*"
+            ],
+            "@utils/*": [
+                "src/utils/*"
+            ],
+            "@lib/*": [
+                "src/lib/*"
+            ],
+            "@hooks/*": [
+                "src/hooks/*"
+            ]
+        },
+        "jsx": "react-jsx",
+        "checkJs": true,
+
+        
+    },
+    "include": [
+        "src"
+    ],
+    "exclude": [
+        "node_modules",
+        "dist"
+    ]
+
+    
+}
