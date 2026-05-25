@@ -92,12 +92,6 @@ export const MainLayout = () => {
             section: 'Configuración',
             items: [
                 {
-                    icon: Shield,
-                    label: 'Roles y Permisos',
-                    path: '/superadmin/roles',
-                    description: 'Gestionar roles del sistema'
-                },
-                {
                     icon: Globe,
                     label: 'Configuración Global',
                     path: '/superadmin/settings',

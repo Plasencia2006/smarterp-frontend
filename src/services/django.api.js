@@ -166,9 +166,13 @@ export const analyticsAPI = {
 }
 
 export const auditAPI = {
-    list: () => djangoApi.get('/audit-logs/'),
+    list: (params = {}) => {
+        const qs = new URLSearchParams(params).toString()
+        return djangoApi.get(`/audit-logs/?${qs}`)
+    },
     summary: () => djangoApi.get('/audit-logs/summary/'),
+    getUserSessions: () => djangoApi.get('/audit-logs/user-sessions/'),
+    getActivityTimeline: () => djangoApi.get('/audit-logs/activity-timeline/'),
 }
-
 
 export default djangoApi

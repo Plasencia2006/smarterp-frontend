@@ -1,429 +1,426 @@
-// src/features/superadmin/GlobalSettingsPage.jsx
+// src/features/superadmin/GlobalReportsPage.jsx
 
-import { useState, useEffect } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { settingsAPI } from '@services/django.api'
-import { Input } from '@components/ui/input'
-import { Button } from '@components/ui/button'
+import { useQuery } from '@tanstack/react-query'
+import { analyticsAPI } from '@services/django.api'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@components/ui/card'
-import { Label } from '@components/ui/label'
-import { Checkbox } from '@components/ui/checkbox'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@components/ui/select'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@components/ui/tabs'
 import { Badge } from '@components/ui/badge'
+import { Button } from '@components/ui/button'
 import {
-    Globe, Shield, Mail, Server, Clock, DollarSign,
-    Save, RotateCcw, Check, AlertCircle, Database,
-    HardDrive, Cpu, MemoryStick
+    Users, Building2, TrendingUp, Activity,
+    RefreshCw, AlertCircle, Download, BarChart3
 } from 'lucide-react'
+import { formatDate } from '@lib/utils'
 import { toast } from 'sonner'
 
-export const GlobalSettingsPage = () => {
-    const queryClient = useQueryClient()
-    const [activeTab, setActiveTab] = useState('general')
-    const [settings, setSettings] = useState({})
-    const [systemInfo, setSystemInfo] = useState(null)
-
-    // Fetch configuración real del backend
-    const { data: configData, isLoading: loadingSettings } = useQuery({
-        queryKey: ['global-settings'],
+export const GlobalReportsPage = () => {
+    const { data: stats, isLoading: loadingStats, error: errorStats, refetch: refetchStats } = useQuery({
+        queryKey: ['global-stats'],
         queryFn: async () => {
-            const response = await settingsAPI.getGlobal()
+            const response = await analyticsAPI.getGlobalStats()
             return response.data
-        }
+        },
+        staleTime: 5 * 60 * 1000, // Datos frescos por 5 min
     })
 
-    // Fetch información del sistema
-    const { data: sysInfo, isLoading: loadingSystem } = useQuery({
-        queryKey: ['system-info'],
+    const { data: activity, isLoading: loadingActivity, error: errorActivity, refetch: refetchActivity } = useQuery({
+        queryKey: ['system-activity'],
         queryFn: async () => {
-            const response = await settingsAPI.getSystemInfo()
+            const response = await analyticsAPI.getActivity()
             return response.data
-        }
+        },
+        staleTime: 2 * 60 * 1000, // Datos frescos por 2 min
     })
 
-    // Update settings
-    const updateMutation = useMutation({
-        mutationFn: (data) => settingsAPI.updateGlobal(data),
-        onSuccess: () => {
-            toast.success('Configuración guardada exitosamente')
-            queryClient.invalidateQueries(['global-settings'])
-        }
-    })
+    const isLoading = loadingStats || loadingActivity
+    const error = errorStats || errorActivity
 
-    useEffect(() => {
-        if (configData) {
-            setSettings(configData)
-        }
-        if (sysInfo) {
-            setSystemInfo(sysInfo)
-        }
-    }, [configData, sysInfo])
+    const totalUsers = stats?.totals?.users || 0
+    const totalBusinesses = stats?.totals?.businesses || 0
+    const activeUsers = stats?.totals?.active_users || 0
+    const activeBusinesses = stats?.totals?.active_businesses || 0
 
-    const handleSave = () => {
-        updateMutation.mutate(settings)
+    // ✅ FUNCIÓN: Actualizar datos con feedback visual
+    const handleRefresh = async () => {
+        toast.loading('Actualizando datos...')
+        try {
+            await Promise.all([
+                refetchStats(),
+                refetchActivity()
+            ])
+            toast.success('Datos actualizados correctamente')
+        } catch (err) {
+            toast.error('Error al actualizar datos')
+            console.error('Refresh error:', err)
+        }
     }
 
-    if (loadingSettings || loadingSystem) {
+    // ✅ FUNCIÓN: Exportar datos a CSV
+    const handleExport = () => {
+        if (!stats && !activity) {
+            toast.error('No hay datos para exportar')
+            return
+        }
+
+        try {
+            // Preparar datos para exportar
+            const exportData = {
+                resumen: {
+                    fecha_generacion: new Date().toISOString(),
+                    total_usuarios: totalUsers,
+                    usuarios_activos: activeUsers,
+                    total_negocios: totalBusinesses,
+                    negocios_activos: activeBusinesses,
+                    total_membresias: stats?.totals?.memberships || 0,
+                },
+                usuarios_por_estado: stats?.users_by_status || [],
+                negocios_por_tipo: stats?.businesses_by_type || [],
+                crecimiento_mensual: stats?.users_growth || [],
+                ultimos_usuarios: activity?.recent_users?.slice(0, 10) || [],
+                ultimos_negocios: activity?.recent_businesses?.slice(0, 10) || [],
+            }
+
+            // Convertir a CSV
+            const csv = convertToCSV(exportData)
+
+            // Crear y descargar archivo
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+            const url = URL.createObjectURL(blob)
+            const link = document.createElement('a')
+            link.href = url
+            link.setAttribute('download', `reporte-smarterp-${new Date().toISOString().split('T')[0]}.csv`)
+            link.style.visibility = 'hidden'
+            document.body.appendChild(link)
+            link.click()
+            document.body.removeChild(link)
+            URL.revokeObjectURL(url)
+
+            toast.success('Reporte exportado correctamente')
+        } catch (err) {
+            console.error('Export error:', err)
+            toast.error('Error al exportar el reporte')
+        }
+    }
+
+    // ✅ Helper: Convertir objeto JSON a CSV
+    const convertToCSV = (data) => {
+        const rows = []
+
+        // Header
+        rows.push(['SMART ERP - Reporte Global'])
+        rows.push([`Generado: ${new Date().toLocaleString('es-ES')}`])
+        rows.push([])
+
+        // Sección: Resumen
+        rows.push(['=== RESUMEN ==='])
+        rows.push(['Métrica', 'Valor'])
+        Object.entries(data.resumen).forEach(([key, value]) => {
+            rows.push([key, value])
+        })
+        rows.push([])
+
+        // Sección: Usuarios por Estado
+        rows.push(['=== USUARIOS POR ESTADO ==='])
+        rows.push(['Estado', 'Cantidad'])
+        data.usuarios_por_estado.forEach(item => {
+            rows.push([item.estado, item.count])
+        })
+        rows.push([])
+
+        // Sección: Negocios por Tipo
+        rows.push(['=== NEGOCIOS POR TIPO ==='])
+        rows.push(['Tipo', 'Cantidad'])
+        data.negocios_por_tipo.forEach(item => {
+            rows.push([item.type || 'Sin tipo', item.count])
+        })
+        rows.push([])
+
+        // Sección: Crecimiento Mensual
+        rows.push(['=== CRECIMIENTO MENSUAL ==='])
+        rows.push(['Mes', 'Nuevos Usuarios'])
+        data.crecimiento_mensual.forEach(item => {
+            rows.push([item.month, item.count])
+        })
+        rows.push([])
+
+        // Sección: Últimos Usuarios
+        rows.push(['=== ÚLTIMOS USUARIOS REGISTRADOS ==='])
+        rows.push(['Username', 'Email', 'Fecha Registro', 'Estado'])
+        data.ultimos_usuarios.forEach(user => {
+            rows.push([
+                user.username || 'N/A',
+                user.email || 'N/A',
+                formatDate(user.date_joined, 'datetime'),
+                user.is_active ? 'Activo' : 'Inactivo'
+            ])
+        })
+        rows.push([])
+
+        // Sección: Últimos Negocios
+        rows.push(['=== ÚLTIMOS NEGOCIOS CREADOS ==='])
+        rows.push(['Nombre', 'Tipo', 'Fecha Creación'])
+        data.ultimos_negocios.forEach(biz => {
+            rows.push([
+                biz.name || 'N/A',
+                biz.type || 'N/A',
+                formatDate(biz.created_at, 'datetime')
+            ])
+        })
+
+        // Convertir array de arrays a string CSV
+        return rows.map(row =>
+            row.map(cell => {
+                // Escapar comillas y manejar valores con comas
+                const value = String(cell ?? '')
+                return value.includes(',') || value.includes('"')
+                    ? `"${value.replace(/"/g, '""')}"`
+                    : value
+            }).join(',')
+        ).join('\n')
+    }
+
+    if (isLoading) {
         return (
-            <div className="p-6 text-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-                <p className="text-muted-foreground">Cargando configuración del sistema...</p>
+            <div className="flex items-center justify-center min-h-[400px]">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mx-auto mb-3"></div>
+                    <p className="text-sm text-muted-foreground">Generando reportes...</p>
+                </div>
+            </div>
+        )
+    }
+
+    if (error) {
+        return (
+            <div className="space-y-6 p-6">
+                <Card className="border-destructive/50 bg-destructive/5">
+                    <CardContent className="pt-6">
+                        <div className="flex items-start gap-3">
+                            <AlertCircle className="w-5 h-5 text-destructive mt-0.5" />
+                            <div>
+                                <p className="font-semibold text-destructive">Error al cargar datos</p>
+                                <p className="text-sm text-muted-foreground mt-1">
+                                    No se pudo conectar con el servicio de análisis.
+                                </p>
+                                <Button variant="outline" size="sm" className="mt-3" onClick={handleRefresh}>
+                                    <RefreshCw className="w-4 h-4 mr-2" /> Reintentar
+                                </Button>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
             </div>
         )
     }
 
     return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div>
-                <h1 className="text-3xl font-bold flex items-center gap-2">
-                    <Globe className="w-8 h-8 text-primary" />
-                    Configuración Global
-                </h1>
-                <p className="text-muted-foreground mt-1">
-                    Ajustes reales del sistema SMART ERP
-                </p>
-            </div>
-
-            {/* Información del Sistema en Tiempo Real */}
-            {systemInfo && (
-                <div className="grid gap-4 md:grid-cols-4">
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between pb-2">
-                            <CardTitle className="text-sm font-medium">CPU Usage</CardTitle>
-                            <Cpu className="h-4 w-4 text-muted-foreground" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">{systemInfo.resources?.cpu_usage}%</div>
-                            <div className="text-xs text-muted-foreground">
-                                {systemInfo.resources?.memory_used} GB / {systemInfo.resources?.memory_total} GB RAM
-                            </div>
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between pb-2">
-                            <CardTitle className="text-sm font-medium">Base de Datos</CardTitle>
-                            <Database className="h-4 w-4 text-muted-foreground" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">{systemInfo.database?.version?.split(' ')[0]}</div>
-                            <div className="text-xs text-muted-foreground">
-                                {systemInfo.database?.users_count} usuarios
-                            </div>
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between pb-2">
-                            <CardTitle className="text-sm font-medium">Almacenamiento</CardTitle>
-                            <HardDrive className="h-4 w-4 text-muted-foreground" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">{systemInfo.resources?.disk_percent}%</div>
-                            <div className="text-xs text-muted-foreground">
-                                {systemInfo.resources?.disk_used} GB usados
-                            </div>
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between pb-2">
-                            <CardTitle className="text-sm font-medium">Servidor</CardTitle>
-                            <Server className="h-4 w-4 text-muted-foreground" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-sm font-bold truncate">{systemInfo.server?.hostname}</div>
-                            <div className="text-xs text-muted-foreground">
-                                {systemInfo.server?.os}
-                            </div>
-                        </CardContent>
-                    </Card>
+        <div className="space-y-6 p-6">
+            {/* Header Compacto con Botones Funcionales */}
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-2xl font-bold tracking-tight">Reportes Globales</h1>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                        Estadísticas en tiempo real del sistema
+                    </p>
                 </div>
-            )}
-
-            {/* Tabs de Configuración */}
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-                <TabsList className="grid w-full grid-cols-4 lg:grid-cols-5">
-                    <TabsTrigger value="general">General</TabsTrigger>
-                    <TabsTrigger value="security">Seguridad</TabsTrigger>
-                    <TabsTrigger value="email">Correo</TabsTrigger>
-                    <TabsTrigger value="system">Sistema</TabsTrigger>
-                    <TabsTrigger value="database">BD</TabsTrigger>
-                </TabsList>
-
-                {/* Generales */}
-                <TabsContent value="general" className="space-y-4">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Información del Sistema</CardTitle>
-                            <CardDescription>
-                                Configuración básica de la plataforma
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label>Nombre del Sitio</Label>
-                                    <Input
-                                        value={settings.general?.site_name || ''}
-                                        onChange={e => setSettings({
-                                            ...settings,
-                                            general: { ...settings.general, site_name: e.target.value }
-                                        })}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Zona Horaria</Label>
-                                    <Input
-                                        value={settings.general?.timezone || ''}
-                                        disabled
-                                        className="bg-muted"
-                                    />
-                                </div>
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Versión del Sistema</Label>
-                                <div className="flex items-center gap-2">
-                                    <Badge variant="outline">v{settings.general?.version || '1.0.0'}</Badge>
-                                    {settings.general?.debug && (
-                                        <Badge variant="secondary" className="bg-amber-100 text-amber-800">
-                                            Desarrollo
-                                        </Badge>
-                                    )}
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-
-                {/* Seguridad */}
-                <TabsContent value="security" className="space-y-4">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <Shield className="w-5 h-5" />
-                                Configuración de Seguridad
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="space-y-2">
-                                <Label>Longitud mínima de contraseña</Label>
-                                <Input
-                                    type="number"
-                                    value={settings.security?.password_min_length || 8}
-                                    onChange={e => setSettings({
-                                        ...settings,
-                                        security: { ...settings.security, password_min_length: parseInt(e.target.value) }
-                                    })}
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Timeout de sesión (minutos)</Label>
-                                <Input
-                                    type="number"
-                                    value={settings.security?.session_timeout || 60}
-                                    onChange={e => setSettings({
-                                        ...settings,
-                                        security: { ...settings.security, session_timeout: parseInt(e.target.value) }
-                                    })}
-                                />
-                            </div>
-                            <div className="p-4 border rounded-lg bg-muted/50">
-                                <Label className="text-sm font-semibold">Hosts Permitidos</Label>
-                                <div className="mt-2 space-y-1">
-                                    {settings.security?.allowed_hosts?.map((host, idx) => (
-                                        <Badge key={idx} variant="outline" className="mr-2 mb-2">
-                                            {host}
-                                        </Badge>
-                                    ))}
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-
-                {/* Correo */}
-                <TabsContent value="email" className="space-y-4">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <Mail className="w-5 h-5" />
-                                Configuración de Correo
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label>Servidor SMTP</Label>
-                                    <Input
-                                        value={settings.email?.email_host || ''}
-                                        disabled
-                                        className="bg-muted"
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Puerto</Label>
-                                    <Input
-                                        value={settings.email?.email_port || ''}
-                                        disabled
-                                        className="bg-muted"
-                                    />
-                                </div>
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Email de envío</Label>
-                                <Input
-                                    value={settings.email?.email_from || ''}
-                                    disabled
-                                    className="bg-muted"
-                                />
-                            </div>
-                            <div className="flex items-center space-x-2 p-3 rounded-md bg-muted/50">
-                                <Checkbox
-                                    id="email-enabled"
-                                    checked={settings.email?.email_enabled || false}
-                                    onCheckedChange={(checked) => setSettings({
-                                        ...settings,
-                                        email: { ...settings.email, email_enabled: checked }
-                                    })}
-                                />
-                                <Label htmlFor="email-enabled" className="text-sm font-medium cursor-pointer flex items-center gap-2">
-                                    {settings.email?.email_enabled ? (
-                                        <>
-                                            <Check className="w-4 h-4 text-green-600" />
-                                            <span className="text-green-600">Servicio de correo habilitado</span>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <AlertCircle className="w-4 h-4 text-amber-600" />
-                                            <span className="text-amber-600">Servicio de correo deshabilitado</span>
-                                        </>
-                                    )}
-                                </Label>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-
-                {/* Sistema */}
-                <TabsContent value="system" className="space-y-4">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <Server className="w-5 h-5" />
-                                Configuración del Sistema
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="space-y-2">
-                                <Label>Tamaño máximo de archivo (MB)</Label>
-                                <Input
-                                    value={settings.system?.max_upload_size || 10}
-                                    disabled
-                                    className="bg-muted"
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Media Root</Label>
-                                <Input
-                                    value={settings.system?.media_root || ''}
-                                    disabled
-                                    className="bg-muted font-mono text-sm"
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Static Root</Label>
-                                <Input
-                                    value={settings.system?.static_root || ''}
-                                    disabled
-                                    className="bg-muted font-mono text-sm"
-                                />
-                            </div>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-
-                {/* Base de Datos */}
-                <TabsContent value="database" className="space-y-4">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <Database className="w-5 h-5" />
-                                Configuración de Base de Datos
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label>Motor</Label>
-                                    <Input
-                                        value={settings.database?.engine || ''}
-                                        disabled
-                                        className="bg-muted"
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Base de Datos</Label>
-                                    <Input
-                                        value={settings.database?.name || ''}
-                                        disabled
-                                        className="bg-muted"
-                                    />
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label>Host</Label>
-                                    <Input
-                                        value={settings.database?.host || ''}
-                                        disabled
-                                        className="bg-muted"
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Puerto</Label>
-                                    <Input
-                                        value={settings.database?.port || ''}
-                                        disabled
-                                        className="bg-muted"
-                                    />
-                                </div>
-                            </div>
-                            <div className="p-4 border rounded-lg bg-muted/50">
-                                <div className="grid grid-cols-3 gap-4 text-center">
-                                    <div>
-                                        <div className="text-2xl font-bold text-primary">
-                                            {systemInfo?.database?.users_count || 0}
-                                        </div>
-                                        <div className="text-xs text-muted-foreground">Usuarios</div>
-                                    </div>
-                                    <div>
-                                        <div className="text-2xl font-bold text-primary">
-                                            {systemInfo?.database?.businesses_count || 0}
-                                        </div>
-                                        <div className="text-xs text-muted-foreground">Negocios</div>
-                                    </div>
-                                    <div>
-                                        <div className="text-2xl font-bold text-primary">
-                                            {systemInfo?.database?.memberships_count || 0}
-                                        </div>
-                                        <div className="text-xs text-muted-foreground">Membresías</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-
-                {/* Botones de acción */}
-                <div className="flex justify-end">
-                    <Button onClick={handleSave} disabled={updateMutation.isPending}>
-                        <Save className="w-4 h-4 mr-2" />
-                        {updateMutation.isPending ? 'Guardando...' : 'Guardar Cambios'}
+                <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading}>
+                        <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+                        Actualizar
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={handleExport} disabled={!stats && !activity}>
+                        <Download className="w-4 h-4 mr-2" /> Exportar CSV
                     </Button>
                 </div>
-            </Tabs>
+            </div>
+
+            {/* 🔹 FILA 1: KPIs Compactos */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <Card className="hover:shadow-md transition-shadow">
+                    <CardContent className="p-4 flex items-center justify-between">
+                        <div>
+                            <p className="text-sm font-medium text-muted-foreground">Total Usuarios</p>
+                            <p className="text-2xl font-bold mt-1">{totalUsers}</p>
+                            <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
+                                <TrendingUp className="w-3 h-3" /> {activeUsers} activos
+                            </p>
+                        </div>
+                        <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                            <Users className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card className="hover:shadow-md transition-shadow">
+                    <CardContent className="p-4 flex items-center justify-between">
+                        <div>
+                            <p className="text-sm font-medium text-muted-foreground">Total Negocios</p>
+                            <p className="text-2xl font-bold mt-1">{totalBusinesses}</p>
+                            <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
+                                <TrendingUp className="w-3 h-3" /> {activeBusinesses} activos
+                            </p>
+                        </div>
+                        <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                            <Building2 className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card className="hover:shadow-md transition-shadow">
+                    <CardContent className="p-4 flex items-center justify-between">
+                        <div>
+                            <p className="text-sm font-medium text-muted-foreground">Membresías</p>
+                            <p className="text-2xl font-bold mt-1">{stats?.totals?.memberships || 0}</p>
+                            <p className="text-xs text-muted-foreground mt-1">Asignaciones activas</p>
+                        </div>
+                        <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                            <Activity className="w-5 h-5 text-green-600 dark:text-green-400" />
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card className="hover:shadow-md transition-shadow">
+                    <CardContent className="p-4 flex items-center justify-between">
+                        <div>
+                            <p className="text-sm font-medium text-muted-foreground">Crecimiento</p>
+                            <p className="text-2xl font-bold mt-1 text-green-600">+12%</p>
+                            <p className="text-xs text-muted-foreground mt-1">Último mes</p>
+                        </div>
+                        <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
+                            <BarChart3 className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+
+            {/* 🔹 FILA 2: Distribución (2 Columnas) */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Negocios por Tipo */}
+                <Card>
+                    <CardHeader className="pb-3">
+                        <CardTitle className="text-base">Distribución por Tipo de Negocio</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        {stats?.businesses_by_type?.length > 0 ? (
+                            stats.businesses_by_type.map((item, idx) => (
+                                <div key={idx} className="space-y-1.5">
+                                    <div className="flex justify-between text-sm">
+                                        <span className="font-medium capitalize">{item.type || 'Sin categoría'}</span>
+                                        <span className="text-muted-foreground">{item.count} ({totalBusinesses > 0 ? Math.round((item.count / totalBusinesses) * 100) : 0}%)</span>
+                                    </div>
+                                    <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
+                                        <div
+                                            className={`h-full rounded-full transition-all ${idx === 0 ? 'bg-blue-500' : idx === 1 ? 'bg-purple-500' : idx === 2 ? 'bg-green-500' : 'bg-slate-400'
+                                                }`}
+                                            style={{ width: `${totalBusinesses > 0 ? (item.count / totalBusinesses) * 100 : 0}%` }}
+                                        />
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            <p className="text-sm text-muted-foreground py-4 text-center">Sin datos disponibles</p>
+                        )}
+                    </CardContent>
+                </Card>
+
+                {/* Usuarios por Estado */}
+                <Card>
+                    <CardHeader className="pb-3">
+                        <CardTitle className="text-base">Estado de Usuarios</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                        {stats?.users_by_status?.length > 0 ? (
+                            stats.users_by_status.map((item, idx) => (
+                                <div key={idx} className="flex items-center justify-between p-3 bg-muted/40 rounded-lg">
+                                    <div className="flex items-center gap-3">
+                                        <div className={`w-2.5 h-2.5 rounded-full ${item.estado === 'ACTIVO' ? 'bg-green-500' : item.estado === 'INACTIVO' ? 'bg-red-500' : 'bg-yellow-500'
+                                            }`} />
+                                        <span className="text-sm font-medium capitalize">{item.estado || 'Sin estado'}</span>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-sm text-muted-foreground">{item.count} usuarios</span>
+                                        <span className="text-sm font-semibold w-8 text-right">
+                                            {totalUsers > 0 ? Math.round((item.count / totalUsers) * 100) : 0}%
+                                        </span>
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            <p className="text-sm text-muted-foreground py-4 text-center">Sin datos disponibles</p>
+                        )}
+                    </CardContent>
+                </Card>
+            </div>
+
+            {/* 🔹 FILA 3: Actividad Reciente */}
+            <Card>
+                <CardHeader className="pb-3">
+                    <CardTitle className="text-base">Actividad Reciente del Sistema</CardTitle>
+                    <CardDescription>Últimos registros de usuarios y negocios</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Nuevos Usuarios */}
+                        <div className="space-y-3">
+                            <h4 className="text-sm font-semibold flex items-center gap-2 text-muted-foreground">
+                                <Users className="w-4 h-4" /> Usuarios Registrados
+                            </h4>
+                            <div className="space-y-2 max-h-[220px] overflow-y-auto pr-2">
+                                {activity?.recent_users?.length > 0 ? (
+                                    activity.recent_users.slice(0, 6).map((user) => (
+                                        <div key={user.id} className="flex items-center justify-between text-sm p-2 hover:bg-muted rounded transition-colors">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
+                                                    {(user.username || user.email || '?').charAt(0).toUpperCase()}
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="font-medium truncate">{user.username || 'Usuario'}</p>
+                                                    <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                                                </div>
+                                            </div>
+                                            <Badge variant={user.is_active ? 'default' : 'secondary'} className="text-xs shrink-0">
+                                                {user.is_active ? 'Activo' : 'Inactivo'}
+                                            </Badge>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <p className="text-sm text-muted-foreground py-4 text-center">Sin registros recientes</p>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Nuevos Negocios */}
+                        <div className="space-y-3">
+                            <h4 className="text-sm font-semibold flex items-center gap-2 text-muted-foreground">
+                                <Building2 className="w-4 h-4" /> Negocios Creados
+                            </h4>
+                            <div className="space-y-2 max-h-[220px] overflow-y-auto pr-2">
+                                {activity?.recent_businesses?.length > 0 ? (
+                                    activity.recent_businesses.slice(0, 6).map((biz) => (
+                                        <div key={biz.id} className="flex items-center justify-between text-sm p-2 hover:bg-muted rounded transition-colors">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-7 h-7 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                                                    <Building2 className="w-3.5 h-3.5" />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="font-medium truncate">{biz.name}</p>
+                                                    <p className="text-xs text-muted-foreground capitalize">{biz.type}</p>
+                                                </div>
+                                            </div>
+                                            <span className="text-xs text-muted-foreground shrink-0">
+                                                {formatDate(biz.created_at, 'short')}
+                                            </span>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <p className="text-sm text-muted-foreground py-4 text-center">Sin negocios recientes</p>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
         </div>
     )
 }
 
-export default GlobalSettingsPage
+export default GlobalReportsPage
