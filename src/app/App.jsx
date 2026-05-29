@@ -15,7 +15,7 @@ import { LoginPage } from '@features/auth/LoginPage'
 import SelectBusiness from '@features/auth/SelectBusiness'
 
 // Features - Dashboard
-import Dashboard from '@features/dashboard/Dashboard'
+
 
 // Features - Super Admin
 import SuperDashboard from '@features/superadmin/SuperDashboard'
@@ -136,8 +136,7 @@ function App() {
                         path="/"
                         element={isAuthenticated ? <MainLayout /> : <Navigate to="/login" />}
                     >
-                        {/* Dashboard Principal */}
-                        <Route path="dashboard" element={<Dashboard />} />
+                
 
                         {/* Super Admin Routes */}
                         <Route path="superadmin">
