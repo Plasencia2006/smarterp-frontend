@@ -90,17 +90,19 @@ export const authAPI = {
 // Agregar al archivo django.api.js
 
 export const businessAPI = {
+    // ✅ CAMBIO CLAVE: Apuntar a /business/businesses/
     list: (params = {}) => {
         const qs = new URLSearchParams(params).toString()
-        return djangoApi.get(`/business/?${qs}`)
+        return djangoApi.get(`/business/businesses/?${qs}`)  // ← Agregado "businesses/"
     },
 
-    // ✅ AGREGAR ESTE MÉTODO
-    get: (id) => djangoApi.get(`/business/${id}/`),
+    get: (id) => djangoApi.get(`/business/businesses/${id}/`),  // ← Agregado "businesses/"
 
-    create: (data) => djangoApi.post('/business/', data),
-    update: (id, data) => djangoApi.patch(`/business/${id}/`, data),
-    delete: (id) => djangoApi.delete(`/business/${id}/`),
+    create: (data) => djangoApi.post('/business/businesses/', data),  // ← Agregado "businesses/"
+
+    update: (id, data) => djangoApi.patch(`/business/businesses/${id}/`, data),  // ← Agregado "businesses/"
+
+    delete: (id) => djangoApi.delete(`/business/businesses/${id}/`),  // ← Agregado "businesses/"
 }
 
 export const membershipAPI = {

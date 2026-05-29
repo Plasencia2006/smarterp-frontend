@@ -16,6 +16,14 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 
+// 🔧 FUNCIÓN HELPERS PARA EXTRAER ARRAY DE LA RESPUESTA
+const extractArray = (data) => {
+    if (Array.isArray(data)) return data
+    if (data?.results && Array.isArray(data.results)) return data.results
+    if (data?.data && Array.isArray(data.data)) return data.data
+    return []
+}
+
 export const BusinessPage = () => {
     const queryClient = useQueryClient()
     const [searchTerm, setSearchTerm] = useState('')
@@ -36,29 +44,57 @@ export const BusinessPage = () => {
         user_id: '', role: 'ADMIN'
     })
 
-    // Fetch negocios
+    // apps/frontend/src/pages/BusinessPage.jsx (o donde tengas el componente)
+
     const { data: businesses, isLoading: loadingBusinesses } = useQuery({
         queryKey: ['businesses', searchTerm],
         queryFn: async () => {
-            const params = searchTerm ? { search: searchTerm } : {}
-            const res = await businessAPI.list(params)
-            return res.data?.results || res.data || []
+            try {
+                const params = searchTerm ? { search: searchTerm } : {}
+                const res = await businessAPI.list(params)
+
+                // 🔍 DEBUG: Ver qué devuelve exactamente la API
+                console.log('📦 RAW API Response:', res)
+                console.log('📦 res.data:', res.data)
+                console.log('📦 Array extraído:', extractArray(res.data))
+
+                return extractArray(res.data)
+            } catch (error) {
+                console.error('❌ Error fetching businesses:', error)
+                return []
+            }
         }
     })
 
-    // Fetch usuarios disponibles - ✅ AHORA MUESTRA TODOS LOS USUARIOS
+    // Fetch usuarios disponibles - ✅ CORREGIDO
     const { data: users, isLoading: loadingUsers } = useQuery({
         queryKey: ['users-for-admins'],
         queryFn: async () => {
-            const res = await usersAPI.list()
-            return res.data?.results || res.data || []
+            try {
+                const res = await usersAPI.list()
+                return extractArray(res.data)
+            } catch (error) {
+                console.error('❌ Error fetching users:', error)
+                return []
+            }
         }
     })
 
-    // Fetch admins de un negocio específico
-    const { data: businessAdmins, isLoading: loadingAdmins } = useQuery({
+    // Fetch admins de un negocio específico - ✅ CORREGIDO
+    const {
+        data: businessAdmins,
+        isLoading: loadingAdmins
+    } = useQuery({
         queryKey: ['business-admins', viewingAdmins?.id],
-        queryFn: () => membershipAPI.getBusinessAdmins(viewingAdmins.id),
+        queryFn: async () => {
+            try {
+                const res = await membershipAPI.getBusinessAdmins(viewingAdmins.id)
+                return extractArray(res.data)
+            } catch (error) {
+                console.error('❌ Error fetching admins:', error)
+                return []
+            }
+        },
         enabled: !!viewingAdmins
     })
 
@@ -121,7 +157,6 @@ export const BusinessPage = () => {
         if (!businessForm.name) {
             toast.error('El nombre del negocio es requerido')
             return
-            
         }
         createMutation.mutate(businessForm)
     }
@@ -200,19 +235,21 @@ export const BusinessPage = () => {
                 />
             </div>
 
-            {/* Lista de Negocios */}
+            {/* Lista de Negocios - ✅ CORREGIDO CON VALIDACIÓN DE ARRAY */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {loadingBusinesses ? (
                     <div className="col-span-full text-center py-10">
                         <p className="text-muted-foreground">Cargando negocios...</p>
                     </div>
-                ) : businesses?.length === 0 ? (
+                ) : !Array.isArray(businesses) || businesses.length === 0 ? (
                     <div className="col-span-full text-center py-10">
                         <Building2 className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                        <p className="text-muted-foreground">No hay negocios registrados</p>
+                        <p className="text-muted-foreground">
+                            {!Array.isArray(businesses) ? 'Error al cargar datos' : 'No hay negocios registrados'}
+                        </p>
                     </div>
                 ) : (
-                    businesses?.map(business => (
+                    businesses.map(business => (
                         <Card key={business.id} className="hover:shadow-lg transition-shadow">
                             <CardHeader>
                                 <div className="flex items-start justify-between">
@@ -443,130 +480,196 @@ export const BusinessPage = () => {
                 </DialogContent>
             </Dialog>
 
-            {/* Modal: Asignar/Ver Administradores */}
+            {/* Modal: Asignar/Ver Administradores - ✅ CORREGIDO */}
             <Dialog open={isAssignAdminOpen} onOpenChange={setIsAssignAdminOpen}>
-                <DialogContent className="max-w-2xl">
-                    <DialogHeader>
-                        <DialogTitle>
-                            {selectedBusiness ? `Administrar: ${selectedBusiness.name}` : 'Administrar Negocio'}
-                        </DialogTitle>
-                        <DialogDescription>
-                            Asigna usuarios como administradores de este negocio
-                        </DialogDescription>
-                    </DialogHeader>
+                <DialogContent className="!w-[95vw] !max-w-[1600px] h-[92vh] p-0 overflow-hidden">
+                    <div className="flex flex-col h-full">
+                        {/* HEADER */}
+                        <div className="border-b px-8 py-6 shrink-0">
+                            <DialogHeader>
+                                <DialogTitle className="flex items-center gap-3 text-3xl">
+                                    <Building2 className="w-8 h-8 text-primary" />
+                                    {selectedBusiness ? `Administrar: ${selectedBusiness.name}` : 'Administrar Negocio'}
+                                </DialogTitle>
+                                <DialogDescription className="text-base mt-2">
+                                    Asigna usuarios como administradores y gestiona los accesos del negocio
+                                </DialogDescription>
+                            </DialogHeader>
+                        </div>
 
-                    <div className="space-y-6">
-                        {/* Formulario de asignación */}
-                        <div className="p-4 border rounded-lg bg-muted/30">
-                            <h3 className="font-semibold mb-4 flex items-center gap-2">
-                                <UserPlus className="w-4 h-4" />
-                                Asignar Nuevo Administrador
-                            </h3>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label>Usuario</Label>
-                                    <Select
-                                        value={adminForm.user_id}
-                                        onValueChange={v => setAdminForm({ ...adminForm, user_id: v })}
-                                    >
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Seleccionar usuario" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {loadingUsers ? (
-                                                <div className="p-2 text-sm text-muted-foreground">Cargando usuarios...</div>
-                                            ) : (
-                                                users?.map(user => (
-                                                    <SelectItem key={user.id} value={user.id}>
-                                                        {user.username} ({user.email})
-                                                        {user.is_super_admin && ' - Super Admin'}
-                                                    </SelectItem>
-                                                ))
-                                            )}
-                                        </SelectContent>
-                                    </Select>
+                        {/* BODY */}
+                        <div className="flex-1 overflow-hidden">
+                            <div className="flex h-full">
+                                {/* SIDEBAR */}
+                                <div className="w-[420px] border-r bg-muted/20 p-6 overflow-y-auto shrink-0">
+                                    <div className="space-y-6">
+                                        {/* FORMULARIO */}
+                                        <Card>
+                                            <CardHeader>
+                                                <CardTitle className="flex items-center gap-2 text-xl">
+                                                    <UserPlus className="w-5 h-5 text-primary" />
+                                                    Asignar Nuevo Administrador
+                                                </CardTitle>
+                                            </CardHeader>
+                                            <CardContent className="space-y-5">
+                                                {/* USUARIO - ✅ CORREGIDO */}
+                                                <div className="space-y-2">
+                                                    <Label>Usuario</Label>
+                                                    <Select
+                                                        value={adminForm.user_id}
+                                                        onValueChange={v => setAdminForm({ ...adminForm, user_id: v })}
+                                                    >
+                                                        <SelectTrigger className="w-full h-11">
+                                                            <SelectValue placeholder="Seleccionar usuario" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {loadingUsers ? (
+                                                                <div className="p-3 text-sm text-muted-foreground">
+                                                                    Cargando usuarios...
+                                                                </div>
+                                                            ) : !Array.isArray(users) || users.length === 0 ? (
+                                                                <div className="p-3 text-sm text-muted-foreground">
+                                                                    No hay usuarios disponibles
+                                                                </div>
+                                                            ) : (
+                                                                users.map(user => (
+                                                                    <SelectItem key={user.id} value={String(user.id)}>
+                                                                        <span className="truncate block">
+                                                                            {user.username} ({user.email})
+                                                                            {user.is_super_admin && ' - Super Admin'}
+                                                                        </span>
+                                                                    </SelectItem>
+                                                                ))
+                                                            )}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+
+                                                {/* ROL */}
+                                                <div className="space-y-2">
+                                                    <Label>Rol</Label>
+                                                    <Select
+                                                        value={adminForm.role}
+                                                        onValueChange={v => setAdminForm({ ...adminForm, role: v })}
+                                                    >
+                                                        <SelectTrigger className="w-full h-11">
+                                                            <SelectValue />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value="OWNER">Propietario</SelectItem>
+                                                            <SelectItem value="ADMIN">Administrador</SelectItem>
+                                                            <SelectItem value="MANAGER">Gerente</SelectItem>
+                                                            <SelectItem value="VENDEDOR">Vendedor</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+
+                                                {/* BOTÓN */}
+                                                <Button
+                                                    className="w-full h-11 text-base"
+                                                    onClick={handleAssignAdmin}
+                                                    disabled={assignAdminMutation.isPending || !adminForm.user_id}
+                                                >
+                                                    {assignAdminMutation.isPending ? 'Asignando...' : 'Asignar al Negocio'}
+                                                </Button>
+                                            </CardContent>
+                                        </Card>
+
+                                        {/* INFO */}
+                                        <Card>
+                                            <CardHeader><CardTitle>Información</CardTitle></CardHeader>
+                                            <CardContent className="space-y-3 text-sm text-muted-foreground">
+                                                <div className="flex items-start gap-2">
+                                                    <Shield className="w-4 h-4 mt-0.5 text-primary" />
+                                                    <span>Gestiona permisos y administradores.</span>
+                                                </div>
+                                                <div className="flex items-start gap-2">
+                                                    <Users className="w-4 h-4 mt-0.5 text-primary" />
+                                                    <span>Los roles controlan el acceso al sistema.</span>
+                                                </div>
+                                                <div className="flex items-start gap-2">
+                                                    <Building2 className="w-4 h-4 mt-0.5 text-primary" />
+                                                    <span>Cada negocio puede tener múltiples administradores.</span>
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+                                    </div>
                                 </div>
-                                <div className="space-y-2">
-                                    <Label>Rol</Label>
-                                    <Select
-                                        value={adminForm.role}
-                                        onValueChange={v => setAdminForm({ ...adminForm, role: v })}
-                                    >
-                                        <SelectTrigger>
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="OWNER">Propietario</SelectItem>
-                                            <SelectItem value="ADMIN">Administrador</SelectItem>
-                                            <SelectItem value="MANAGER">Gerente</SelectItem>
-                                            <SelectItem value="VENDEDOR">Vendedor</SelectItem>
-                                        </SelectContent>
-                                    </Select>
+
+                                {/* CONTENIDO DERECHO */}
+                                <div className="flex-1 flex flex-col overflow-hidden">
+                                    {/* TOP */}
+                                    <div className="border-b px-6 py-4 shrink-0">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <h2 className="text-2xl font-bold">Administradores Actuales</h2>
+                                                <p className="text-sm text-muted-foreground">
+                                                    Lista de usuarios con acceso administrativo
+                                                </p>
+                                            </div>
+                                            <Badge variant="secondary" className="text-sm px-3 py-1">
+                                                {Array.isArray(businessAdmins) ? businessAdmins.length : 0} admins
+                                            </Badge>
+                                        </div>
+                                    </div>
+
+                                    {/* LISTA - ✅ CORREGIDO */}
+                                    <div className="flex-1 overflow-y-auto p-6">
+                                        {loadingAdmins ? (
+                                            <div className="h-full flex items-center justify-center">
+                                                <p className="text-muted-foreground">Cargando administradores...</p>
+                                            </div>
+                                        ) : !Array.isArray(businessAdmins) || businessAdmins.length === 0 ? (
+                                            <div className="h-full flex flex-col items-center justify-center">
+                                                <Shield className="w-14 h-14 text-muted-foreground mb-4" />
+                                                <p className="text-lg text-muted-foreground">
+                                                    {!Array.isArray(businessAdmins) ? 'Error al cargar' : 'No hay administradores asignados'}
+                                                </p>
+                                            </div>
+                                        ) : (
+                                            <div className="grid grid-cols-2 xl:grid-cols-3 gap-4">
+                                                {businessAdmins.map(admin => (
+                                                    <Card key={admin.id} className="hover:shadow-md transition-all">
+                                                        <CardContent className="p-5">
+                                                            <div className="flex items-start justify-between gap-4">
+                                                                <div className="flex gap-4 min-w-0">
+                                                                    <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                                                                        <Users className="w-6 h-6 text-primary" />
+                                                                    </div>
+                                                                    <div className="min-w-0">
+                                                                        <p className="font-semibold truncate">
+                                                                            {admin.user_details?.username || 'Usuario'}
+                                                                        </p>
+                                                                        <p className="text-sm text-muted-foreground truncate">
+                                                                            {admin.user_details?.email || ''}
+                                                                        </p>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <div className="mt-5">
+                                                                <Badge className={getRoleBadgeColor(admin.role)}>
+                                                                    {admin.role}
+                                                                </Badge>
+                                                            </div>
+                                                        </CardContent>
+                                                    </Card>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
-                            <Button
-                                className="mt-4 w-full"
-                                onClick={handleAssignAdmin}
-                                disabled={assignAdminMutation.isPending || !adminForm.user_id}
-                            >
-                                {assignAdminMutation.isPending ? 'Asignando...' : 'Asignar al Negocio'}
-                            </Button>
                         </div>
 
-                        {/* Lista de administradores actuales */}
-                        <div>
-                            <h3 className="font-semibold mb-4 flex items-center gap-2">
-                                <Shield className="w-4 h-4" />
-                                Administradores Actuales
-                            </h3>
-                
-                            {loadingAdmins ? (
-                                <p className="text-sm text-muted-foreground text-center py-4">
-                                    Cargando administradores...
-                                </p>
-                            ) : !businessAdmins || (Array.isArray(businessAdmins) && businessAdmins.length === 0) ? (
-                                <p className="text-sm text-muted-foreground text-center py-4">
-                                    No hay administradores asignados
-                                </p>
-                            ) : (
-                                <div className="space-y-2 max-h-60 overflow-y-auto">
-                                    {Array.isArray(businessAdmins) && businessAdmins.map(admin => (
-                                        <div key={admin.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/30">
-                                            <div className="flex items-center gap-3 flex-1">
-                                                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                                                    <Users className="w-5 h-5 text-primary" />
-                                                </div>
-                                                <div className="flex-1">
-                                                    <p className="font-medium">{admin.user_details?.username || 'Usuario'}</p>
-                                                    <p className="text-xs text-muted-foreground">{admin.user_details?.email || ''}</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <Badge className={getRoleBadgeColor(admin.role)}>
-                                                    {admin.role}
-                                                </Badge>
-                                                <Button
-                                                    size="sm"
-                                                    variant="ghost"
-                                                    className="text-destructive hover:text-destructive"
-                                                    onClick={() => revokeMutation.mutate(admin.id)}
-                                                    disabled={revokeMutation.isPending}
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
+                        {/* FOOTER */}
+                        <div className="border-t px-8 py-5 shrink-0">
+                            <DialogFooter>
+                                <Button variant="outline" size="lg" onClick={() => setIsAssignAdminOpen(false)}>
+                                    Cerrar
+                                </Button>
+                            </DialogFooter>
                         </div>
                     </div>
-
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsAssignAdminOpen(false)}>
-                            Cerrar
-                        </Button>
-                    </DialogFooter>
                 </DialogContent>
             </Dialog>
         </div>
