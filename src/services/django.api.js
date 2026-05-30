@@ -1,23 +1,32 @@
+// src/services/django.api.js
 import axios from 'axios'
 
+// =============================================================================
+// ⚙️ CONFIGURACIÓN BASE
+// =============================================================================
 const API_URL = import.meta.env.VITE_AUTH_API || 'http://localhost:8000/api/v1'
 
 const TOKEN_KEY = import.meta.env.VITE_TOKEN_KEY || 'smart_erp_token'
 const REFRESH_KEY = import.meta.env.VITE_REFRESH_KEY || 'smart_erp_refresh'
 const BUSINESS_KEY = import.meta.env.VITE_BUSINESS_KEY || 'smart_erp_business'
+const USER_KEY = import.meta.env.VITE_USER_KEY || 'smart_erp_user'
 
-// Crear instancia base
+// Crear instancia base de axios
 const djangoApi = axios.create({
     baseURL: API_URL,
     headers: {
         'Content-Type': 'application/json',
     },
+    withCredentials: false,
 })
 
-// Interceptor de request
+// =============================================================================
+// 🔐 INTERCEPTORES
+// =============================================================================
+
+// Interceptor de Request - Agrega token y business_id automáticamente
 djangoApi.interceptors.request.use(
     (config) => {
-        // Obtener token directamente del localStorage (más confiable)
         const token = localStorage.getItem(TOKEN_KEY)
         const business = localStorage.getItem(BUSINESS_KEY)
         const businessId = business ? JSON.parse(business).id : null
@@ -27,7 +36,7 @@ djangoApi.interceptors.request.use(
         }
 
         if (businessId && !config.skipBusinessHeader) {
-            config.headers['X-BUSINESS-ID'] = businessId
+            config.headers['X-Business-ID'] = businessId
         }
 
         return config
@@ -35,40 +44,45 @@ djangoApi.interceptors.request.use(
     (error) => Promise.reject(error)
 )
 
-// Interceptor de response
+// Interceptor de Response - Maneja refresh token y errores 401
 djangoApi.interceptors.response.use(
     (response) => response,
     async (error) => {
         const originalRequest = error.config
 
+        // Si es 401 y no es un re-intento, intentar refresh
         if (error.response?.status === 401 && !originalRequest._retry) {
             originalRequest._retry = true
 
             try {
                 const refresh = localStorage.getItem(REFRESH_KEY)
-                if (!refresh) {
-                    throw new Error('No refresh token')
-                }
+                if (!refresh) throw new Error('No refresh token')
 
-                // Intentar refresh del token
+                // Intentar obtener nuevo access token
                 const response = await axios.post(`${API_URL}/auth/token/refresh/`, {
                     refresh: refresh
+                }, {
+                    headers: { 'Content-Type': 'application/json' }
                 })
 
                 const { access } = response.data
                 localStorage.setItem(TOKEN_KEY, access)
 
+                // Reintentar la petición original con el nuevo token
                 originalRequest.headers.Authorization = `Bearer ${access}`
                 return djangoApi(originalRequest)
+
             } catch (refreshError) {
-                // Refresh falló - limpiar sesión
+                // Refresh falló - limpiar sesión completa
                 localStorage.removeItem(TOKEN_KEY)
                 localStorage.removeItem(REFRESH_KEY)
                 localStorage.removeItem(BUSINESS_KEY)
-                localStorage.removeItem('smart_erp_user')
+                localStorage.removeItem(USER_KEY)
 
                 // Redirigir a login
-                window.location.href = '/login'
+                if (window.location.pathname !== '/login') {
+                    window.location.href = '/login'
+                }
                 return Promise.reject(refreshError)
             }
         }
@@ -77,81 +91,247 @@ djangoApi.interceptors.response.use(
     }
 )
 
-// Servicios de autenticación
+// =============================================================================
+// 🔐 AUTH API
+// =============================================================================
 export const authAPI = {
+    /**
+     * Iniciar sesión - Devuelve tokens + user data con roles/permisos
+     */
     login: (credentials) => djangoApi.post('/auth/login/', credentials),
+
+    /**
+     * Registrar nuevo usuario (Super Admin)
+     */
     register: (data) => djangoApi.post('/auth/register/', data),
+
+    /**
+     * Refresh de token
+     */
     refreshToken: (refresh) => djangoApi.post('/auth/token/refresh/', { refresh }),
+
+    /**
+     * Obtener perfil del usuario actual con roles y permisos
+     */
     getProfile: () => djangoApi.get('/auth/me/'),
+
+    /**
+     * Cerrar sesión (invalidar tokens si el backend lo soporta)
+     */
     logout: () => djangoApi.post('/auth/logout/'),
+
+    // Gestión de usuarios (Super Admin)
+    listUsers: (params = {}) => {
+        const qs = new URLSearchParams(params).toString()
+        return djangoApi.get(`/auth/users/?${qs}`)
+    },
+    getUser: (id) => djangoApi.get(`/auth/users/${id}/`),
+    updateUser: (id, data) => djangoApi.patch(`/auth/users/${id}/`, data),
+    deleteUser: (id) => djangoApi.delete(`/auth/users/${id}/`),
 }
 
-// Servicios de negocios
-// Agregar al archivo django.api.js
-
+// =============================================================================
+// 🏢 BUSINESS API (Negocios - Super Admin)
+// =============================================================================
 export const businessAPI = {
-    // ✅ CAMBIO CLAVE: Apuntar a /business/businesses/
+    // ── Negocios ──────────────────────────────────────────────────────────
+
+    /**
+     * Listar negocios (con paginación y filtros)
+     */
     list: (params = {}) => {
         const qs = new URLSearchParams(params).toString()
-        return djangoApi.get(`/business/businesses/?${qs}`)  // ← Agregado "businesses/"
+        return djangoApi.get(`/business/businesses/?${qs}`)
     },
 
-    get: (id) => djangoApi.get(`/business/businesses/${id}/`),  // ← Agregado "businesses/"
+    /**
+     * Obtener detalle de un negocio
+     */
+    get: (id) => djangoApi.get(`/business/businesses/${id}/`),
 
-    create: (data) => djangoApi.post('/business/businesses/', data),  // ← Agregado "businesses/"
+    /**
+     * Crear nuevo negocio
+     */
+    create: (data) => djangoApi.post('/business/businesses/', data),
 
-    update: (id, data) => djangoApi.patch(`/business/businesses/${id}/`, data),  // ← Agregado "businesses/"
+    /**
+     * Actualizar negocio (PATCH)
+     */
+    update: (id, data) => djangoApi.patch(`/business/businesses/${id}/`, data),
 
-    delete: (id) => djangoApi.delete(`/business/businesses/${id}/`),  // ← Agregado "businesses/"
-}
+    /**
+     * Eliminar negocio
+     */
+    delete: (id) => djangoApi.delete(`/business/businesses/${id}/`),
 
-export const membershipAPI = {
-    // Asignar admin a negocio
+    // ── Membresías ────────────────────────────────────────────────────────
+
+    listMemberships: (params = {}) => {
+        const qs = new URLSearchParams(params).toString()
+        return djangoApi.get(`/business/memberships/?${qs}`)
+    },
+
     assignAdmin: (data) => djangoApi.post('/business/memberships/assign/', data),
 
-    // Obtener admins de un negocio
     getBusinessAdmins: (businessId) =>
         djangoApi.get(`/business/memberships/business/${businessId}/admins/`),
 
-    // Revocar acceso
     revokeAccess: (membershipId) =>
         djangoApi.post(`/business/memberships/${membershipId}/revoke/`),
 
-    // Listar todas las membresías
+    // ── Usuarios del Negocio (BusinessUser) - Gestión por Admin de Negocio ─
+
+    /**
+     * Listar usuarios del negocio actual (con roles asignados)
+     */
+    getUsers: (params = {}) => {
+        const qs = new URLSearchParams(params).toString()
+        return djangoApi.get(`/business/users/?${qs}`)
+    },
+
+    /**
+     * Obtener detalle de un usuario del negocio
+     */
+    getUser: (id) => djangoApi.get(`/business/users/${id}/`),
+
+    /**
+     * Crear usuario del negocio
+     * @param {Object} data - { email, password, first_name, last_name, employee_code?, department?, position?, hire_date?, initial_role_id? }
+     */
+    createUser: (data) => djangoApi.post('/business/users/', data),
+
+    /**
+     * Actualizar usuario del negocio
+     */
+    updateUser: (id, data) => djangoApi.patch(`/business/users/${id}/`, data),
+
+    /**
+     * Eliminar usuario del negocio (desactiva BusinessUser, no borra CustomUser)
+     */
+    deleteUser: (id) => djangoApi.delete(`/business/users/${id}/`),
+
+    // ── Asignación de Roles ───────────────────────────────────────────────
+
+    /**
+     * Asignar rol a un usuario del negocio (con auditoría)
+     * @param {string} businessUserId - ID del BusinessUser
+     * @param {string} roleId - ID del BusinessRole
+     * @param {string} notes - Notas opcionales de auditoría
+     */
+    assignRole: (businessUserId, roleId, notes = '') =>
+        djangoApi.post(`/business/users/${businessUserId}/assign_role/`, {
+            role_id: roleId,
+            notes
+        }),
+
+    /**
+     * Revocar rol de un usuario del negocio
+     * @param {string} businessUserId - ID del BusinessUser  
+     * @param {string} roleId - ID del BusinessRole a revocar
+     */
+    revokeRole: (businessUserId, roleId) =>
+        djangoApi.post(`/business/users/${businessUserId}/revoke_role/`, {
+            role_id: roleId
+        }),
+
+    // ── Histórico de Asignaciones ─────────────────────────────────────────
+
+    /**
+     * Listar histórico completo de asignaciones de roles
+     */
+    listRoleAssignments: (params = {}) => {
+        const qs = new URLSearchParams(params).toString()
+        return djangoApi.get(`/business/role-assignments/?${qs}`)
+    },
+
+    // ── Endpoints Especiales ──────────────────────────────────────────────
+
+    /**
+     * Obtener solo usuarios con roles activos asignados
+     */
+    getUsersWithActiveRoles: () => djangoApi.get('/business/users/with-active-roles/'),
+
+    // ── Roles del Negocio ─────────────────────────────────────────────────
+
+    /**
+     * Listar roles disponibles para el negocio actual
+     */
+    getRoles: (params = {}) => {
+        const qs = new URLSearchParams(params).toString()
+        return djangoApi.get(`/business/roles/?${qs}`)
+    },
+
+    getRole: (id) => djangoApi.get(`/business/roles/${id}/`),
+    createRole: (data) => djangoApi.post('/business/roles/', data),
+    updateRole: (id, data) => djangoApi.patch(`/business/roles/${id}/`, data),
+    deleteRole: (id) => djangoApi.delete(`/business/roles/${id}/`),
+
+    /**
+     * Obtener usuarios que tienen un rol específico
+     */
+    getRoleUsers: (roleId) => djangoApi.get(`/business/roles/${roleId}/users/`),
+
+    // ── Permisos del Sistema (Solo Lectura) ───────────────────────────────
+
+    /**
+     * Listar todos los permisos disponibles en el sistema
+     */
+    getPermissions: (params = {}) => {
+        const qs = new URLSearchParams(params).toString()
+        return djangoApi.get(`/business/permissions/?${qs}`)
+    },
+
+    getPermission: (id) => djangoApi.get(`/business/permissions/${id}/`),
+}
+
+// =============================================================================
+// 👥 MEMBERSHIP API (Gestión de accesos)
+// =============================================================================
+export const membershipAPI = {
+    assignAdmin: (data) => djangoApi.post('/business/memberships/assign/', data),
+
+    getBusinessAdmins: (businessId) =>
+        djangoApi.get(`/business/memberships/business/${businessId}/admins/`),
+
+    revokeAccess: (membershipId) =>
+        djangoApi.post(`/business/memberships/${membershipId}/revoke/`),
+
     list: (params = {}) => {
         const qs = new URLSearchParams(params).toString()
         return djangoApi.get(`/business/memberships/${qs ? '?' + qs : ''}`)
     },
 }
 
-// Servicios de usuarios
+// =============================================================================
+// 👤 USERS API (Usuarios globales - Super Admin)
+// =============================================================================
 export const usersAPI = {
     list: (params = {}) => {
         const qs = new URLSearchParams(params).toString()
-        return djangoApi.get(`/users/${qs ? '?' + qs : ''}`)
+        return djangoApi.get(`/auth/users/${qs ? '?' + qs : ''}`)
     },
 
-    // ✅ CREATE: POST a /users/
-    create: (data) => djangoApi.post('/users/', data),
+    create: (data) => djangoApi.post('/auth/users/', data),
 
-    // UPDATE: PATCH a /users/{id}/
-    update: (id, data) => djangoApi.patch(`/users/${id}/`, data),
+    update: (id, data) => djangoApi.patch(`/auth/users/${id}/`, data),
 
-    // DELETE: DELETE a /users/{id}/
-    delete: (id) => djangoApi.delete(`/users/${id}/`),
+    delete: (id) => djangoApi.delete(`/auth/users/${id}/`),
 
-    // HISTORY: GET a /users/{id}/history/
-    getHistory: (id) => djangoApi.get(`/users/${id}/history/`)
+    getHistory: (id) => djangoApi.get(`/auth/users/${id}/history/`)
 }
 
-// Agregar al final de src/services/django.api.js
-
+// =============================================================================
+// ⚙️ SETTINGS API
+// =============================================================================
 export const settingsAPI = {
     getGlobal: () => djangoApi.get('/settings/'),
     updateGlobal: (data) => djangoApi.put('/settings/', data),
     getSystemInfo: () => djangoApi.get('/system-info/'),
 }
 
+// =============================================================================
+// 💾 BACKUPS API
+// =============================================================================
 export const backupsAPI = {
     list: () => djangoApi.get('/backups/'),
     create: () => djangoApi.post('/backups/'),
@@ -162,11 +342,17 @@ export const backupsAPI = {
     }),
 }
 
+// =============================================================================
+// 📊 ANALYTICS API
+// =============================================================================
 export const analyticsAPI = {
     getGlobalStats: () => djangoApi.get('/analytics/global-stats/'),
     getActivity: () => djangoApi.get('/analytics/activity/'),
 }
 
+// =============================================================================
+// 🔍 AUDIT API
+// =============================================================================
 export const auditAPI = {
     list: (params = {}) => {
         const qs = new URLSearchParams(params).toString()
@@ -177,4 +363,7 @@ export const auditAPI = {
     getActivityTimeline: () => djangoApi.get('/audit-logs/activity-timeline/'),
 }
 
+// =============================================================================
+// 🎯 EXPORT DEFAULT
+// =============================================================================
 export default djangoApi
