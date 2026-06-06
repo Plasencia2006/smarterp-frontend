@@ -23,12 +23,32 @@ import { UsersPage } from '@/features/superadmin/UsersPage'
 import GlobalReportsPage from '@/features/superadmin/GlobalReportsPage'
 import GlobalSettingsPage from '@/features/superadmin/GlobalSettingsPage'
 import BackupsPage from '@/features/superadmin/BackupsPage'
-import AuditPage from '@/features/superadmin/AuditPage'
+import SuperAuditPage from '@/features/superadmin/AuditPage'  // ← ✅ Renombrado para evitar conflicto
 
-// Páginas - Business
+// Páginas - Business (Admin del Negocio)
 import BusinessDashboard from '@/features/business/BusinessDashboard'
 
-// Placeholder
+
+import UsersManager from '@/features/business/UsersManager'
+import RolesManager from '@/features/business/RolesManager'
+import MembersManager from '@/features/business/MembersManager'
+import InventoryManager from '@/features/business/InventoryManager'
+import SalesManager from '@/features/business/SalesManager'
+import ReportsPage from '@/features/business/ReportsPage'
+import SettingsPage from '@/features/business/SettingsPage'
+import AuditPage from '@/features/business/AuditPage'
+
+// ✅ Módulos de negocio - Comentar los que NO existen aún para evitar errores
+// import UsersManager from '@/features/business/modules/users/UsersManager'
+// import RolesManager from '@/features/business/RolesManager'
+// import MembersManager from '@/features/business/MembersManager'
+// import InventoryManager from '@/features/business/InventoryManager'
+// import SalesManager from '@/features/business/SalesManager'
+// import ReportsPage from '@/features/business/ReportsPage'
+// import SettingsPage from '@/features/business/SettingsPage'
+// import AuditPage from '@/features/business/AuditPage'
+
+// Placeholder para módulos en desarrollo
 const Placeholder = ({ title }) => (
     <div className="flex items-center justify-center h-64 bg-muted/20 rounded-lg border border-dashed">
         <div className="text-center">
@@ -48,11 +68,11 @@ const queryClient = new QueryClient({
     },
 })
 
-// ✅ Componente Login con verificación de autenticación
+// ✅ Componente Login con verificación de autenticación - VERSIÓN FINAL
+// ✅ Componente Login con verificación de autenticación - CON DEBUG
 function LoginWithAuthCheck() {
     const { isAuthenticated, loading, user } = useAuth()
 
-    // Si está cargando, muestra loading
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -61,35 +81,58 @@ function LoginWithAuthCheck() {
         )
     }
 
-    // ✅ Si YA está autenticado, redirigir inmediatamente
     if (isAuthenticated && user) {
-        const primaryRole = user.roles?.[0]?.name?.toLowerCase() || ''
+        // 🔍 DEBUG: Ver qué tiene realmente el objeto user
+        console.log('🔍 [DEBUG] User object completo:', JSON.stringify(user, null, 2))
+        console.log('🔍 [DEBUG] business_memberships:', user.business_memberships)
+        console.log('🔍 [DEBUG] memberships:', user.memberships)
+        console.log('🔍 [DEBUG] businesses:', user.businesses)
+        console.log('🔍 [DEBUG] roles:', user.roles)
+        console.log('🔍 [DEBUG] is_super_admin:', user.is_super_admin)
 
+        // 1️⃣ Super Admin
         if (user.is_super_admin) {
+            console.log('🚀 Super Admin → /superadmin/dashboard')
             window.location.href = '/superadmin/dashboard'
-        } else if (primaryRole.includes('vendedor')) {
-            window.location.href = '/vendedor/dashboard'
-        } else if (primaryRole.includes('cajero')) {
-            window.location.href = '/cajero/dashboard'
-        } else if (primaryRole.includes('inventario')) {
-            window.location.href = '/inventario/dashboard'
-        } else if (primaryRole.includes('contador')) {
-            window.location.href = '/contador/dashboard'
-        } else if (primaryRole.includes('soporte') || primaryRole.includes('tecnico')) {
-            window.location.href = '/soporte/dashboard'
-        } else {
-            window.location.href = '/business/dashboard'
+            return null
         }
 
-        // Mientras redirige, muestra loading
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-            </div>
-        )
+        // 2️⃣ ✅ Verificar negocios asignados - CON MÚLTIPLES NOMBRES POSIBLES
+        const hasBusiness =
+            (user.business_memberships && user.business_memberships.length > 0) ||
+            (user.memberships && user.memberships.length > 0) ||
+            (user.businesses && user.businesses.length > 0) ||
+            (user.business && user.business.id) // Si es un solo negocio como objeto
+
+        console.log('✅ [DEBUG] hasBusiness:', hasBusiness)
+
+        if (!hasBusiness) {
+            console.warn('⚠️ Usuario SIN negocios detectados:', user.email)
+            // window.location.href = '/no-business-access'  // ← Descomenta cuando quieras
+            return (
+                <div className="min-h-screen flex items-center justify-center bg-gray-50">
+                    <div className="text-center max-w-md p-8">
+                        <h2 className="text-2xl font-bold mb-4 text-red-600">⚠️ Debug Mode</h2>
+                        <p className="text-muted-foreground mb-4">
+                            El usuario NO tiene negocios detectados. Revisa la consola (F12) para ver el objeto user completo.
+                        </p>
+                        <pre className="text-xs bg-gray-100 p-4 rounded overflow-auto max-h-64">
+                            {JSON.stringify(user, null, 2)}
+                        </pre>
+                        <Button onClick={() => window.location.href = '/login'} className="mt-4" variant="outline">
+                            Volver al Login
+                        </Button>
+                    </div>
+                </div>
+            )
+        }
+
+        // 3️⃣ Todos van a select-business
+        console.log('🚀 Usuario con negocio → /select-business')
+        window.location.href = '/select-business'
+        return null
     }
 
-    // ✅ Si NO está autenticado, mostrar login
     return <LoginPage />
 }
 
@@ -107,7 +150,7 @@ function AppRoutes() {
 
     return (
         <Routes>
-            {/* 🔓 PÚBLICAS - Con verificación de autenticación */}
+            {/* 🔓 PÚBLICAS */}
             <Route path="/login" element={<LoginWithAuthCheck />} />
             <Route path="/select-business" element={<SelectBusiness />} />
 
@@ -124,10 +167,9 @@ function AppRoutes() {
                 <Route path="settings" element={<GlobalSettingsPage />} />
                 <Route path="backups" element={<BackupsPage />} />
                 <Route path="reports" element={<GlobalReportsPage />} />
-                <Route path="audit" element={<AuditPage />} />
+                <Route path="audit" element={<SuperAuditPage />} />  {/* ← ✅ Usar nombre renombrado */}
             </Route>
 
-            {/* 🔐 ADMIN DEL NEGOCIO */}
             <Route path="/business/*" element={
                 <ProtectedRoute>
                     <BusinessLayout />
@@ -136,39 +178,65 @@ function AppRoutes() {
                 <Route index element={<BusinessDashboard />} />
                 <Route path="dashboard" element={<BusinessDashboard />} />
 
+                {/* ✅ CAMBIAR: Reemplazar Placeholder por componente real */}
                 <Route path="users/*" element={
                     <ProtectedRoute requiredPermission="users.view">
-                        <Placeholder title="Gestión de Usuarios" />
+                        <UsersManager />  {/* ← Cambiar de <Placeholder /> a <UsersManager /> */}
                     </ProtectedRoute>
                 } />
-                <Route path="sales/*" element={
-                    <ProtectedRoute requiredPermission="sales.view">
-                        <Placeholder title="Ventas" />
+
+                <Route path="roles/*" element={
+                    <ProtectedRoute requiredPermission="roles.view">
+                        <RolesManager />  {/* ← Cambiar de <Placeholder /> a <RolesManager /> */}
                     </ProtectedRoute>
                 } />
+
+                <Route path="members/*" element={
+                    <ProtectedRoute requiredPermission="users.view">
+                        <MembersManager />  {/* ← Cambiar de <Placeholder /> a <MembersManager /> */}
+                    </ProtectedRoute>
+                } />
+
                 <Route path="inventory/*" element={
                     <ProtectedRoute requiredPermission="inventory.read">
-                        <Placeholder title="Inventario" />
+                        <InventoryManager />  {/* ← Cambiar de <Placeholder /> a <InventoryManager /> */}
                     </ProtectedRoute>
                 } />
-                <Route path="cashier/*" element={
-                    <ProtectedRoute requiredPermission="cashier.manage">
-                        <Placeholder title="Caja" />
+
+                <Route path="sales/*" element={
+                    <ProtectedRoute requiredPermission="sales.view">
+                        <SalesManager />  {/* ← Cambiar de <Placeholder /> a <SalesManager /> */}
                     </ProtectedRoute>
                 } />
+
                 <Route path="reports/*" element={
                     <ProtectedRoute requiredPermission="reports.view">
-                        <Placeholder title="Reportes" />
+                        <ReportsPage />  {/* ← Cambiar de <Placeholder /> a <ReportsPage /> */}
                     </ProtectedRoute>
                 } />
+
+                <Route path="settings/*" element={
+                    <ProtectedRoute requiredPermission="business.update">
+                        <SettingsPage />  {/* ← Cambiar de <Placeholder /> a <SettingsPage /> */}
+                    </ProtectedRoute>
+                } />
+
+                <Route path="audit/*" element={
+                    <ProtectedRoute requiredPermission="audit.view">
+                        <AuditPage />  {/* ← Cambiar de <Placeholder /> a <AuditPage /> */}
+                    </ProtectedRoute>
+                } />
+
+                {/* Mantener Placeholder solo para módulos que aún no existen */}
+                <Route path="cashier/*" element={
+                    <ProtectedRoute requiredPermission="cashier.manage">
+                        <Placeholder title="Caja / Punto de Venta" />
+                    </ProtectedRoute>
+                } />
+
                 <Route path="services/*" element={
                     <ProtectedRoute requiredPermission="services.view">
                         <Placeholder title="Servicios" />
-                    </ProtectedRoute>
-                } />
-                <Route path="settings/*" element={
-                    <ProtectedRoute requiredPermission="business.update">
-                        <Placeholder title="Configuración" />
                     </ProtectedRoute>
                 } />
             </Route>

@@ -1,18 +1,18 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { businessAPI, usersAPI, membershipAPI } from '@services/django.api'
-import { Input } from '@components/ui/input'
-import { Button } from '@components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@components/ui/card'
+import { businessAPI, usersAPI, membershipAPI } from '@/services/django.api'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
     Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription
-} from '@components/ui/dialog'
-import { Label } from '@components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@components/ui/select'
-import { Badge } from '@components/ui/badge'
+} from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Badge } from '@/components/ui/badge'
 import {
     Building2, Plus, Search, Users, UserPlus, Mail, Phone, MapPin,
-    Shield, Trash2, Edit, X
+    Shield, Trash2, Edit, X, AlertCircle
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -35,6 +35,10 @@ export const BusinessPage = () => {
     const [selectedBusiness, setSelectedBusiness] = useState(null)
     const [viewingAdmins, setViewingAdmins] = useState(null)
 
+    // ✅ Estados para confirmar eliminación de admin
+    const [adminToRevoke, setAdminToRevoke] = useState(null)
+    const [isRevokeDialogOpen, setIsRevokeDialogOpen] = useState(false)
+
     // Form states
     const [businessForm, setBusinessForm] = useState({
         name: '', description: '', type: 'RETAIL',
@@ -44,20 +48,12 @@ export const BusinessPage = () => {
         user_id: '', role: 'ADMIN'
     })
 
-    // apps/frontend/src/pages/BusinessPage.jsx (o donde tengas el componente)
-
     const { data: businesses, isLoading: loadingBusinesses } = useQuery({
         queryKey: ['businesses', searchTerm],
         queryFn: async () => {
             try {
                 const params = searchTerm ? { search: searchTerm } : {}
                 const res = await businessAPI.list(params)
-
-                // 🔍 DEBUG: Ver qué devuelve exactamente la API
-                console.log('📦 RAW API Response:', res)
-                console.log('📦 res.data:', res.data)
-                console.log('📦 Array extraído:', extractArray(res.data))
-
                 return extractArray(res.data)
             } catch (error) {
                 console.error('❌ Error fetching businesses:', error)
@@ -66,7 +62,7 @@ export const BusinessPage = () => {
         }
     })
 
-    // Fetch usuarios disponibles - ✅ CORREGIDO
+    // Fetch usuarios disponibles
     const { data: users, isLoading: loadingUsers } = useQuery({
         queryKey: ['users-for-admins'],
         queryFn: async () => {
@@ -80,7 +76,7 @@ export const BusinessPage = () => {
         }
     })
 
-    // Fetch admins de un negocio específico - ✅ CORREGIDO
+    // Fetch admins de un negocio específico
     const {
         data: businessAdmins,
         isLoading: loadingAdmins
@@ -139,12 +135,17 @@ export const BusinessPage = () => {
         }
     })
 
-    // Mutación: Revocar acceso
+    // ✅ Mutación: Revocar acceso
     const revokeMutation = useMutation({
         mutationFn: (membershipId) => membershipAPI.revokeAccess(membershipId),
         onSuccess: () => {
             toast.success('Acceso revocado exitosamente')
             queryClient.invalidateQueries(['business-admins'])
+            setIsRevokeDialogOpen(false)
+            setAdminToRevoke(null)
+        },
+        onError: (error) => {
+            toast.error(error.response?.data?.error || 'Error al revocar acceso')
         }
     })
 
@@ -179,6 +180,19 @@ export const BusinessPage = () => {
             user_id: adminForm.user_id,
             role: adminForm.role
         })
+    }
+
+    // ✅ Función para abrir modal de confirmación
+    const handleRevokeAdmin = (admin) => {
+        setAdminToRevoke(admin)
+        setIsRevokeDialogOpen(true)
+    }
+
+    // ✅ Función para confirmar la revocación
+    const confirmRevokeAdmin = () => {
+        if (adminToRevoke?.id) {
+            revokeMutation.mutate(adminToRevoke.id)
+        }
     }
 
     const openEditModal = (business) => {
@@ -235,7 +249,7 @@ export const BusinessPage = () => {
                 />
             </div>
 
-            {/* Lista de Negocios - ✅ CORREGIDO CON VALIDACIÓN DE ARRAY */}
+            {/* Lista de Negocios */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {loadingBusinesses ? (
                     <div className="col-span-full text-center py-10">
@@ -480,7 +494,7 @@ export const BusinessPage = () => {
                 </DialogContent>
             </Dialog>
 
-            {/* Modal: Asignar/Ver Administradores - ✅ CORREGIDO */}
+            {/* Modal: Asignar/Ver Administradores */}
             <Dialog open={isAssignAdminOpen} onOpenChange={setIsAssignAdminOpen}>
                 <DialogContent className="!w-[95vw] !max-w-[1600px] h-[92vh] p-0 overflow-hidden">
                     <div className="flex flex-col h-full">
@@ -512,7 +526,7 @@ export const BusinessPage = () => {
                                                 </CardTitle>
                                             </CardHeader>
                                             <CardContent className="space-y-5">
-                                                {/* USUARIO - ✅ CORREGIDO */}
+                                                {/* USUARIO */}
                                                 <div className="space-y-2">
                                                     <Label>Usuario</Label>
                                                     <Select
@@ -613,7 +627,7 @@ export const BusinessPage = () => {
                                         </div>
                                     </div>
 
-                                    {/* LISTA - ✅ CORREGIDO */}
+                                    {/* LISTA DE ADMINS */}
                                     <div className="flex-1 overflow-y-auto p-6">
                                         {loadingAdmins ? (
                                             <div className="h-full flex items-center justify-center">
@@ -638,14 +652,27 @@ export const BusinessPage = () => {
                                                                     </div>
                                                                     <div className="min-w-0">
                                                                         <p className="font-semibold truncate">
-                                                                            {admin.user_details?.username || 'Usuario'}
+                                                                            {admin.user_details?.username || admin.user?.username || 'Usuario'}
                                                                         </p>
                                                                         <p className="text-sm text-muted-foreground truncate">
-                                                                            {admin.user_details?.email || ''}
+                                                                            {admin.user_details?.email || admin.user?.email || ''}
                                                                         </p>
                                                                     </div>
                                                                 </div>
+
+                                                                {/* ✅ BOTÓN DE ELIMINAR/REVOCAR */}
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    className="text-red-600 hover:text-red-700 hover:bg-red-50 h-8 w-8"
+                                                                    onClick={() => handleRevokeAdmin(admin)}
+                                                                    disabled={revokeMutation.isPending}
+                                                                    title="Revocar acceso de administrador"
+                                                                >
+                                                                    <Trash2 className="w-4 h-4" />
+                                                                </Button>
                                                             </div>
+
                                                             <div className="mt-5">
                                                                 <Badge className={getRoleBadgeColor(admin.role)}>
                                                                     {admin.role}
@@ -670,6 +697,55 @@ export const BusinessPage = () => {
                             </DialogFooter>
                         </div>
                     </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* ✅ MODAL DE CONFIRMACIÓN PARA REVOCAR ACCESO */}
+            <Dialog open={isRevokeDialogOpen} onOpenChange={setIsRevokeDialogOpen}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-red-600">
+                            <AlertCircle className="w-5 h-5" />
+                            Confirmar revocación
+                        </DialogTitle>
+                        <DialogDescription>
+                            ¿Estás seguro de revocar el acceso de administrador a:
+                            <br />
+                            <strong className="text-gray-900">
+                                {adminToRevoke?.user_details?.username || adminToRevoke?.user?.username || 'este usuario'}?
+                            </strong>
+                            <br /><br />
+                            Esta acción:
+                            <ul className="list-disc list-inside mt-2 text-sm space-y-1">
+                                <li>Removerá los permisos de administrador en este negocio</li>
+                                <li>No eliminará la cuenta de usuario del sistema</li>
+                                <li>Podrá ser asignado nuevamente en el futuro</li>
+                            </ul>
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter className="gap-2 sm:gap-0">
+                        <Button
+                            variant="outline"
+                            onClick={() => setIsRevokeDialogOpen(false)}
+                            disabled={revokeMutation.isPending}
+                        >
+                            Cancelar
+                        </Button>
+                        <Button
+                            variant="destructive"
+                            onClick={confirmRevokeAdmin}
+                            disabled={revokeMutation.isPending}
+                        >
+                            {revokeMutation.isPending ? (
+                                <>
+                                    <span className="animate-spin mr-2">⏳</span>
+                                    Revocando...
+                                </>
+                            ) : (
+                                'Revocar Acceso'
+                            )}
+                        </Button>
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
         </div>

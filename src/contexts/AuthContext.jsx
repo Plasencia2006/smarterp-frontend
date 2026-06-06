@@ -3,6 +3,11 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { authAPI } from '@/services/django.api'
 
+const TOKEN_KEY = import.meta.env.VITE_TOKEN_KEY || 'smart_erp_token'
+const REFRESH_KEY = import.meta.env.VITE_REFRESH_KEY || 'smart_erp_refresh'
+const USER_KEY = import.meta.env.VITE_USER_KEY || 'smart_erp_user'
+const BUSINESS_KEY = import.meta.env.VITE_BUSINESS_KEY || 'smart_erp_business' //  ESTA FALTABA
+
 const AuthContext = createContext(null)
 
 export const AuthProvider = ({ children }) => {
@@ -41,35 +46,93 @@ export const AuthProvider = ({ children }) => {
         setUser(null)
     }, [])
 
-    // ✅ Login: devuelve resultado, NO navega
-    const login = useCallback(async (email, password) => {
+    const login = async (email, password) => {
         try {
             setError(null)
             setLoading(true)
 
+            console.log('🔐 Intentando login...')
+
             const response = await authAPI.login({ email, password })
             const { access, refresh, user: userData } = response.data
 
-            // ✅ Guardar en localStorage PRIMERO
+            // Validar respuesta
+            if (!access || !userData) {
+                throw new Error('Respuesta incompleta del servidor')
+            }
+
+            // Guardar tokens y usuario
             localStorage.setItem(TOKEN_KEY, access)
             localStorage.setItem(REFRESH_KEY, refresh)
             localStorage.setItem(USER_KEY, JSON.stringify(userData))
 
-            // ✅ Actualizar estado de React
+            // Guardar negocio
+            if (userData.business_memberships && userData.business_memberships.length > 0) {
+                const membership = userData.business_memberships[0]
+                const businessId = membership.business || membership.id
+
+                const businessData = {
+                    id: businessId,
+                    name: membership.business_name || 'Mi Negocio',
+                    role: membership.membership_role || 'USER',
+                }
+
+                localStorage.setItem(BUSINESS_KEY, JSON.stringify(businessData))
+            }
+
+            // Actualizar estado
             setUser(userData)
 
-            // ✅ IMPORTANTE: Retornar inmediatamente con los datos
+            // Configurar axios
+            if (typeof djangoApi !== 'undefined' && djangoApi) {
+                djangoApi.defaults.headers.common['Authorization'] = `Bearer ${access}`
+            }
+
+            console.log('✅ Login exitoso')
             return { success: true, user: userData }
 
         } catch (err) {
             console.error('❌ Login error:', err)
-            const message = err.response?.data?.detail || err.response?.data?.error || 'Error al iniciar sesión'
+
+            // ✅ MANEJO DE ERRORES ESPECÍFICOS
+            let message = 'Error al iniciar sesión'
+
+            if (err.response) {
+                // Error del servidor
+                const status = err.response.status
+                const data = err.response.data
+
+                switch (status) {
+                    case 400:
+                        message = data.detail || data.error || 'Datos inválidos'
+                        break
+                    case 401:
+                        // ✅ MENSAJE CLARO PARA CREDENCIALES INCORRECTAS
+                        message = 'Email o contraseña incorrectos'
+                        break
+                    case 403:
+                        message = 'Cuenta suspendida o inactiva'
+                        break
+                    case 500:
+                        message = 'Error del servidor. Intente más tarde'
+                        break
+                    default:
+                        message = data.detail || data.error || message
+                }
+            } else if (err.request) {
+                // No hubo respuesta del servidor
+                message = 'No hay conexión con el servidor'
+            } else {
+                // Error al configurar la petición
+                message = err.message || message
+            }
+
             setError(message)
             return { success: false, error: message }
         } finally {
             setLoading(false)
         }
-    }, [])
+    }
 
     const logout = useCallback(() => {
         // ❌ NO llames a la API si no existe (evita 404)

@@ -1,161 +1,147 @@
 // src/features/auth/SelectBusiness.jsx
 
-import { useEffect } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { authStore } from '@store/authStore'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@components/ui/card'
-import { Button } from '@components/ui/button'
-import { Building2, ArrowRight, AlertCircle, LogOut } from 'lucide-react'
+import { useAuth } from '@/contexts/AuthContext'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Building2, Loader2, CheckCircle2 } from 'lucide-react'
 
-export const SelectBusiness = () => {
+export default function SelectBusiness() {
     const navigate = useNavigate()
-    const { user, userBusinesses, logout, selectBusiness } = authStore()
+    const { user, loading } = useAuth()
+    const [selectedBusinessId, setSelectedBusinessId] = useState(null)
 
-    // Debugging
+    // ✅ CORRECCIÓN: Acceder a la propiedad correcta que envía el backend
+    const userBusinesses = user?.business_memberships || []
+
+    // 🔍 Debug logs (puedes quitarlos después de verificar)
+    console.log('🔍 [SelectBusiness] user:', user)
+    console.log('🔍 [SelectBusiness] userBusinesses:', userBusinesses)
+
+    // ❌ ELIMINADO/COMENTADO: Este useEffect hacía redirección automática
+    /*
     useEffect(() => {
-        console.log('🔍 [SelectBusiness] ========== RENDER ==========')
-        console.log('🔍 [SelectBusiness] user:', user)
-        console.log('🔍 [SelectBusiness] userBusinesses:', userBusinesses)
-        console.log('🔍 [SelectBusiness] userBusinesses.length:', userBusinesses?.length)
-        console.log('🔍 [SelectBusiness] ========== FIN ==========')
-
-        if (!user) {
-            console.log('⚠️ [SelectBusiness] No hay usuario, redirigiendo a login')
-            navigate('/login', { replace: true })
+        if (!loading && userBusinesses.length === 1) {
+            const business = userBusinesses[0]
+            const businessId = business.business || business.id
+            navigate(`/business/${businessId}/dashboard`, { replace: true })
         }
-    }, [user, userBusinesses, navigate])
+    }, [loading, userBusinesses, navigate])
+    */
 
-    if (!user) {
-        return null
+    if (loading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gray-50">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+            </div>
+        )
     }
 
-    // Manejo seguro
-    const businesses = Array.isArray(userBusinesses) ? userBusinesses : []
-
-    console.log('📋 [SelectBusiness] Businesses a mostrar:', businesses)
-
-    if (businesses.length === 0) {
-        console.log('⚠️ [SelectBusiness] No hay negocios asignados')
+    // Si no tiene negocios asignados
+    if (userBusinesses.length === 0) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-4">
-                <Card className="w-full max-w-md border-destructive/30">
-                    <CardHeader>
-                        <div className="flex items-center gap-2 text-destructive">
-                            <AlertCircle className="w-5 h-5" />
-                            <CardTitle>Acceso Restringido</CardTitle>
-                        </div>
+            <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+                <Card className="w-full max-w-md">
+                    <CardHeader className="text-center">
+                        <CardTitle className="text-2xl">Sin Negocios Asignados</CardTitle>
                         <CardDescription>
-                            No tienes negocios asignados en el sistema
+                            Contacta al administrador para recibir acceso
                         </CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-4">
-                        <p className="text-sm text-muted-foreground">
-                            Contacta al administrador para que te asigne un negocio.
-                        </p>
-                        <div className="flex gap-2">
-                            <Button variant="outline" onClick={() => navigate('/')} className="flex-1">
-                                Ir al Inicio
-                            </Button>
-                            <Button variant="outline" onClick={logout} className="flex-1">
-                                <LogOut className="w-4 h-4 mr-2" />
-                                Cerrar Sesión
-                            </Button>
-                        </div>
+                    <CardContent className="text-center">
+                        <Button variant="outline" onClick={() => window.location.href = '/login'}>
+                            Volver al Login
+                        </Button>
                     </CardContent>
                 </Card>
             </div>
         )
     }
 
-    // Función para seleccionar negocio
-    const handleSelectBusiness = (businessId, businessName) => {
-        console.log(`🚀 [SelectBusiness] Seleccionando: ${businessName} (${businessId})`)
+    const handleSelectBusiness = () => {
+        if (!selectedBusinessId) return
 
-        // Guardar selección en el store y localStorage
-        selectBusiness(businessId, businessName)
+        const business = userBusinesses.find(b =>
+            b.id === selectedBusinessId || b.business === selectedBusinessId
+        )
 
-        // Navegar al dashboard del negocio
-        navigate(`/business/${businessId}/dashboard`)
+        if (business) {
+            // ✅ Redirigir directamente a /business/dashboard (SIN ID en la URL)
+            console.log('🚀 Redirigiendo a /business/dashboard')
+            navigate('/business/dashboard', { replace: true })
+        }
     }
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-4">
-            <div className="w-full max-w-2xl">
-                {/* Header */}
-                <div className="text-center mb-8">
-                    <div className="flex justify-center mb-4">
-                        <div className="w-16 h-16 rounded-xl bg-primary flex items-center justify-center">
-                            <Building2 className="w-8 h-8 text-white" />
-                        </div>
+            <Card className="w-full max-w-lg">
+                <CardHeader className="text-center">
+                    <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+                        <Building2 className="w-8 h-8 text-blue-600" />
                     </div>
-                    <h1 className="text-3xl font-bold">Selecciona tu Negocio</h1>
-                    <p className="text-muted-foreground mt-2">
-                        Tienes acceso a <strong>{businesses.length}</strong> negocios.
-                        Selecciona uno para continuar.
-                    </p>
-                </div>
+                    <CardTitle className="text-2xl">Selecciona tu Negocio</CardTitle>
+                    <CardDescription>
+                        Tienes acceso a {userBusinesses.length} negocio{userBusinesses.length > 1 ? 's' : ''}
+                    </CardDescription>
+                </CardHeader>
 
-                {/* Lista de Negocios */}
-                <div className="grid gap-4">
-                    {businesses.map((membership, index) => {
-                        const businessId = membership.business || membership.id || membership.business_id
-                        const businessName = membership.business_name || membership.name || `Negocio #${index + 1}`
-                        const role = membership.role || 'Miembro'
-                        const isActive = membership.is_active !== false
+                <CardContent className="space-y-4">
+                    {/* Lista de negocios */}
+                    <div className="space-y-3">
+                        {userBusinesses.map((biz) => {
+                            const bizId = biz.business || biz.id
+                            const isSelected = selectedBusinessId === bizId
 
-                        return (
-                            <Card
-                                key={businessId || index}
-                                className="hover:shadow-lg transition-all cursor-pointer border-2 hover:border-primary/50"
-                                onClick={() => isActive && handleSelectBusiness(businessId, businessName)}
-                            >
-                                <CardContent className="p-6">
+                            return (
+                                <button
+                                    key={bizId}
+                                    onClick={() => setSelectedBusinessId(bizId)}
+                                    className={`w-full p-4 border rounded-lg text-left transition-all ${isSelected
+                                            ? 'border-blue-600 bg-blue-50 ring-2 ring-blue-200'
+                                            : 'hover:border-blue-300 hover:bg-gray-50'
+                                        }`}
+                                >
                                     <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-4">
-                                            <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${isActive ? 'bg-primary' : 'bg-muted'
+                                        <div className="flex items-center gap-3">
+                                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isSelected ? 'bg-blue-600' : 'bg-gray-100'
                                                 }`}>
-                                                <Building2 className={`w-6 h-6 ${isActive ? 'text-white' : 'text-muted-foreground'
+                                                <Building2 className={`w-5 h-5 ${isSelected ? 'text-white' : 'text-gray-600'
                                                     }`} />
                                             </div>
                                             <div>
-                                                <h3 className="font-semibold text-lg flex items-center gap-2">
-                                                    {businessName}
-                                                    {!isActive && (
-                                                        <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
-                                                            Inactivo
-                                                        </span>
-                                                    )}
-                                                </h3>
-                                                <p className="text-sm text-muted-foreground capitalize">
-                                                    Rol: {role.toLowerCase()}
+                                                <p className="font-semibold text-gray-900">
+                                                    {biz.business_name || 'Negocio'}
+                                                </p>
+                                                <p className="text-sm text-muted-foreground">
+                                                    Rol: {biz.membership_role || 'Miembro'}
                                                 </p>
                                             </div>
                                         </div>
-                                        {isActive && (
-                                            <ArrowRight className="w-5 h-5 text-muted-foreground" />
+                                        {isSelected && (
+                                            <CheckCircle2 className="w-5 h-5 text-blue-600" />
                                         )}
                                     </div>
-                                </CardContent>
-                            </Card>
-                        )
-                    })}
-                </div>
+                                </button>
+                            )
+                        })}
+                    </div>
 
-                {/* Footer */}
-                <div className="mt-8 text-center">
+                    {/* Botón de continuar - Habilitado solo si hay selección */}
                     <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={logout}
-                        className="text-muted-foreground hover:text-destructive"
+                        className="w-full bg-blue-600 hover:bg-blue-700"
+                        onClick={handleSelectBusiness}
+                        disabled={!selectedBusinessId}
                     >
-                        <LogOut className="w-4 h-4 mr-2" />
-                        Cerrar Sesión
+                        Continuar al Dashboard
                     </Button>
-                </div>
-            </div>
+
+                    {/* Info de usuario */}
+                    <div className="pt-4 border-t text-center text-sm text-muted-foreground">
+                        <p>Conectado como: <span className="font-medium text-gray-900">{user?.email}</span></p>
+                    </div>
+                </CardContent>
+            </Card>
         </div>
     )
 }
-
-export default SelectBusiness

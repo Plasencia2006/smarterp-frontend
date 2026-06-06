@@ -363,6 +363,114 @@ export const auditAPI = {
     getActivityTimeline: () => djangoApi.get('/audit-logs/activity-timeline/'),
 }
 
+// Interceptor de Response - Maneja refresh token y errores 401
+djangoApi.interceptors.response.use(
+    (response) => response,
+    async (error) => {
+        const originalRequest = error.config
+
+        // ✅ NO intentar refresh si es el endpoint de login
+        if (originalRequest.url.includes('/auth/login/') ||
+            originalRequest.url.includes('/auth/token/refresh/')) {
+            return Promise.reject(error)
+        }
+
+        // Si es 401 y no es un re-intento, intentar refresh
+        if (error.response?.status === 401 && !originalRequest._retry) {
+            originalRequest._retry = true
+
+            try {
+                const refresh = localStorage.getItem(REFRESH_KEY)
+
+                // ✅ VALIDAR QUE EXISTA REFRESH TOKEN
+                if (!refresh) {
+                    console.warn('⚠️ No hay refresh token, redirigiendo a login')
+                    // Limpiar sesión
+                    localStorage.removeItem(TOKEN_KEY)
+                    localStorage.removeItem(REFRESH_KEY)
+                    localStorage.removeItem(BUSINESS_KEY)
+                    localStorage.removeItem(USER_KEY)
+
+                    // Redirigir a login
+                    if (window.location.pathname !== '/login') {
+                        window.location.href = '/login'
+                    }
+                    return Promise.reject(new Error('No refresh token'))
+                }
+
+                // Intentar obtener nuevo access token
+                const response = await axios.post(`${API_URL}/auth/token/refresh/`, {
+                    refresh: refresh
+                }, {
+                    headers: { 'Content-Type': 'application/json' }
+                })
+
+                const { access } = response.data
+                localStorage.setItem(TOKEN_KEY, access)
+
+                // Reintentar la petición original con el nuevo token
+                originalRequest.headers.Authorization = `Bearer ${access}`
+                return djangoApi(originalRequest)
+
+            } catch (refreshError) {
+                console.error('❌ Error al refresh token:', refreshError)
+
+                // Refresh falló - limpiar sesión completa
+                localStorage.removeItem(TOKEN_KEY)
+                localStorage.removeItem(REFRESH_KEY)
+                localStorage.removeItem(BUSINESS_KEY)
+                localStorage.removeItem(USER_KEY)
+
+                // Redirigir a login
+                if (window.location.pathname !== '/login') {
+                    window.location.href = '/login'
+                }
+                return Promise.reject(refreshError)
+            }
+        }
+
+        return Promise.reject(error)
+    }
+)
+
+djangoApi.interceptors.request.use(
+    (config) => {
+        const token = localStorage.getItem(TOKEN_KEY)
+
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`
+        }
+
+        // ✅ Obtener business_id
+        let businessId = null
+
+        try {
+            const business = JSON.parse(localStorage.getItem(BUSINESS_KEY) || 'null')
+            if (business?.id) {
+                businessId = business.id
+            }
+        } catch (e) { }
+
+        if (!businessId) {
+            try {
+                const user = JSON.parse(localStorage.getItem(USER_KEY) || 'null')
+                const membership = user?.business_memberships?.[0]
+                if (membership) {
+                    businessId = membership.business || membership.id
+                }
+            } catch (e) { }
+        }
+
+        // ✅ Agregar header SOLO si tenemos business_id
+        if (businessId && !config.skipBusinessHeader) {
+            config.headers['X-Business-ID'] = businessId
+            console.log('🔗 [Interceptor] X-Business-ID agregado:', businessId)
+        }
+
+        return config
+    },
+    (error) => Promise.reject(error)
+)
 // =============================================================================
 // 🎯 EXPORT DEFAULT
 // =============================================================================

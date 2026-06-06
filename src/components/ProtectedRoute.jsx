@@ -2,104 +2,75 @@
 
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { AlertCircle, Lock, LogIn, Shield } from 'lucide-react'
 
-/**
- * Componente para proteger rutas por autenticación, rol o permiso
- */
-const ProtectedRoute = ({
-    children,
-    requireAuth = true,
-    requiredRole,
-    requiredPermission,
-    requireAll = false,
-    redirectTo = '/login',
-    fallback
-}) => {
-    const { user, loading, hasPermission, hasRole, hasAnyPermission, hasAllPermissions, isSuperAdmin } = useAuth()
+const ProtectedRoute = ({ children, requiredPermission, requiredRole }) => {
+    const { user, isAuthenticated, hasPermission } = useAuth()
     const location = useLocation()
 
-    // Loading state
-    if (loading) {
+    if (!isAuthenticated) {
+        return <Navigate to="/login" state={{ from: location }} replace />
+    }
+
+    // ✅ SI ES SUPER ADMIN → Acceso total
+    if (user.is_super_admin) {
+        return children
+    }
+
+    // ✅ SI ES ADMINISTRADOR DEL NEGOCIO → Acceso total a todos los módulos
+    const isAdminBusiness = user.business_memberships?.some(m =>
+        m.membership_role?.toUpperCase() === 'ADMIN' ||
+        m.role?.toUpperCase() === 'ADMIN'
+    )
+
+    if (isAdminBusiness) {
+        return children
+    }
+
+    // ✅ SI ES ADMIN DE ROLES → Acceso total
+    const isAdminRole = user.roles?.some(r =>
+        r.name?.toLowerCase() === 'administrador' ||
+        r.name?.toLowerCase() === 'admin'
+    )
+
+    if (isAdminRole) {
+        return children
+    }
+
+    // Verificar permiso específico (solo para usuarios NO admin)
+    if (requiredPermission && !hasPermission(requiredPermission)) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-50">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+                <div className="text-center">
+                    <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <svg className="w-10 h-10 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                    </div>
+                    <h1 className="text-2xl font-bold text-gray-900 mb-2">Acceso Denegado</h1>
+                    <p className="text-muted-foreground mb-4">No tienes los permisos necesarios</p>
+                    {requiredPermission && (
+                        <p className="text-sm text-gray-500 mb-6">
+                            Permisos requeridos: <code className="bg-gray-100 px-2 py-1 rounded">{requiredPermission}</code>
+                        </p>
+                    )}
+                    <button
+                        onClick={() => window.history.back()}
+                        className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 mr-2"
+                    >
+                        Volver
+                    </button>
+                    <button
+                        onClick={() => window.location.href = '/login'}
+                        className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                    >
+                        Iniciar Sesión
+                    </button>
+                </div>
             </div>
         )
     }
 
-    // Verificar autenticación
-    if (requireAuth && !user) {
-        return <Navigate to={redirectTo} state={{ from: location }} replace />
-    }
-
-    // Verificar rol (si se especifica)
-    if (requiredRole) {
-        if (requiredRole === 'super_admin' && !isSuperAdmin()) {
-            return fallback || <AccessDenied message="Requiere rol de Super Admin" />
-        }
-        if (requiredRole !== 'super_admin' && !hasRole(requiredRole)) {
-            return fallback || <AccessDenied message={`Requiere rol: ${requiredRole}`} />
-        }
-    }
-
-    // Verificar permisos (si se especifica)
-    if (requiredPermission) {
-        const permissions = Array.isArray(requiredPermission) ? requiredPermission : [requiredPermission]
-        const hasAccess = requireAll
-            ? hasAllPermissions(permissions)
-            : hasAnyPermission(permissions)
-
-        if (!hasAccess) {
-            return fallback || <AccessDenied
-                message="No tienes los permisos necesarios"
-                requiredPermissions={permissions}
-            />
-        }
-    }
-
-    // Todo OK, renderizar children
     return children
 }
-
-// ✅ Componente UI para acceso denegado (sin depender de shadcn alert)
-const AccessDenied = ({ message, requiredPermissions }) => (
-    <div className="min-h-[400px] flex flex-col items-center justify-center p-6">
-        <div className="p-4 bg-red-100 rounded-full mb-4">
-            <Lock className="w-8 h-8 text-red-600" />
-        </div>
-
-        <div className="max-w-md text-center space-y-4">
-            <div>
-                <h2 className="text-xl font-semibold text-gray-900 mb-2">Acceso Denegado</h2>
-                <p className="text-gray-600">{message}</p>
-            </div>
-
-            {requiredPermissions?.length > 0 && (
-                <div className="bg-gray-50 rounded-lg p-3">
-                    <p className="text-xs font-medium text-gray-700 mb-2">Permisos requeridos:</p>
-                    <div className="flex flex-wrap gap-2 justify-center">
-                        {requiredPermissions.map((perm, i) => (
-                            <Badge key={i} variant="secondary" className="text-[10px]">
-                                {perm}
-                            </Badge>
-                        ))}
-                    </div>
-                </div>
-            )}
-
-            <div className="flex gap-3 justify-center pt-2">
-                <Button variant="outline" size="sm" onClick={() => window.history.back()}>
-                    Volver
-                </Button>
-                <Button size="sm" onClick={() => window.location.href = '/login'}>
-                    <LogIn className="w-4 h-4 mr-2" /> Iniciar Sesión
-                </Button>
-            </div>
-        </div>
-    </div>
-)
 
 export default ProtectedRoute
