@@ -1,6 +1,6 @@
 // src/features/auth/SelectBusiness.jsx
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -15,20 +15,59 @@ export default function SelectBusiness() {
     // ✅ CORRECCIÓN: Acceder a la propiedad correcta que envía el backend
     const userBusinesses = user?.business_memberships || []
 
-    // 🔍 Debug logs (puedes quitarlos después de verificar)
+    // 🔍 Debug logs
     console.log('🔍 [SelectBusiness] user:', user)
     console.log('🔍 [SelectBusiness] userBusinesses:', userBusinesses)
 
-    // ❌ ELIMINADO/COMENTADO: Este useEffect hacía redirección automática
-    /*
+    // ✅ FUNCIÓN PARA DETERMINAR RUTA SEGÚN ROL
+    const getDashboardPath = (membershipRole) => {
+        const role = membershipRole?.toUpperCase() || ''
+
+        console.log('🎭 [SelectBusiness] Determinando ruta para rol:', role)
+
+        switch (role) {
+            case 'ADMIN':
+            case 'OWNER':
+            case 'MANAGER':
+                return '/business/dashboard'
+
+            case 'CAJERO':
+                return '/cajero/dashboard'
+
+            case 'VENDEDOR':
+                return '/vendedor/dashboard'
+
+            case 'CONTADOR':
+                return '/contador/dashboard'
+
+            case 'INVENTARIO':
+                return '/inventario/dashboard'
+
+            case 'SOPORTE':
+            case 'TECNICO':
+                return '/soporte/dashboard'
+
+            default:
+                console.log('⚠️ Rol no reconocido:', role, '- Usando /business/dashboard')
+                return '/business/dashboard'
+        }
+    }
+
+    // ✅ REDIRECCIÓN AUTOMÁTICA SI SOLO TIENE UN NEGOCIO
     useEffect(() => {
         if (!loading && userBusinesses.length === 1) {
             const business = userBusinesses[0]
-            const businessId = business.business || business.id
-            navigate(`/business/${businessId}/dashboard`, { replace: true })
+            const membershipRole = business.membership_role
+
+            console.log('🚀 [SelectBusiness] Solo 1 negocio detectado')
+            console.log('🎭 [SelectBusiness] Rol:', membershipRole)
+
+            const targetPath = getDashboardPath(membershipRole)
+            console.log('🎯 [SelectBusiness] Redirigiendo automáticamente a:', targetPath)
+
+            navigate(targetPath, { replace: true })
         }
     }, [loading, userBusinesses, navigate])
-    */
 
     if (loading) {
         return (
@@ -67,9 +106,15 @@ export default function SelectBusiness() {
         )
 
         if (business) {
-            // ✅ Redirigir directamente a /business/dashboard (SIN ID en la URL)
-            console.log('🚀 Redirigiendo a /business/dashboard')
-            navigate('/business/dashboard', { replace: true })
+            // ✅ DETERMINAR RUTA SEGÚN EL ROL DEL NEGOCIO SELECCIONADO
+            const membershipRole = business.membership_role
+            const targetPath = getDashboardPath(membershipRole)
+
+            console.log('🚀 [SelectBusiness] Negocio seleccionado:', business.business_name)
+            console.log('🎭 [SelectBusiness] Rol:', membershipRole)
+            console.log('🎯 [SelectBusiness] Redirigiendo a:', targetPath)
+
+            navigate(targetPath, { replace: true })
         }
     }
 
@@ -98,8 +143,8 @@ export default function SelectBusiness() {
                                     key={bizId}
                                     onClick={() => setSelectedBusinessId(bizId)}
                                     className={`w-full p-4 border rounded-lg text-left transition-all ${isSelected
-                                            ? 'border-blue-600 bg-blue-50 ring-2 ring-blue-200'
-                                            : 'hover:border-blue-300 hover:bg-gray-50'
+                                        ? 'border-blue-600 bg-blue-50 ring-2 ring-blue-200'
+                                        : 'hover:border-blue-300 hover:bg-gray-50'
                                         }`}
                                 >
                                     <div className="flex items-center justify-between">

@@ -1,5 +1,3 @@
-// src/features/auth/LoginPage.jsx
-
 import { useNavigate, Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -26,38 +24,189 @@ export const LoginPage = () => {
     })
 
     const onSubmit = async (data) => {
-        try {
-            const result = await login(data.email, data.password)
+    try {
+        const result = await login(data.email, data.password)
 
-            if (!result.success) {
-                toast.error(result.error || 'Credenciales incorrectas')
-                return
-            }
+        if (!result.success) {
+            toast.error(result.error || 'Credenciales incorrectas')
+            return
+        }
 
-            // ✅ NAVEGACIÓN INMEDIATA - Sin toast que pueda causar delay
-            const targetUser = result.user
-            const primaryRole = targetUser.roles?.[0]?.name?.toLowerCase() || ''
+        const targetUser = result.user
+        
+        console.log('\n' + '='.repeat(80))
+        console.log('🎯 USUARIO LOGUEADO:')
+        console.log('  Email:', targetUser.email)
+        console.log('  is_super_admin:', targetUser.is_super_admin)
+        console.log('  Memberships:', targetUser.business_memberships)
+        console.log('  Roles:', targetUser.roles)
+        console.log('  Permissions:', targetUser.permissions)
+        console.log('='.repeat(80) + '\n')
 
-            // Determinar destino
-            if (targetUser.is_super_admin) {
-                window.location.href = '/superadmin/dashboard'  // ← Forzar recarga
-            } else if (primaryRole.includes('vendedor')) {
-                window.location.href = '/vendedor/dashboard'
-            } else if (primaryRole.includes('cajero')) {
-                window.location.href = '/cajero/dashboard'
-            } else if (primaryRole.includes('inventario')) {
-                window.location.href = '/inventario/dashboard'
-            } else if (primaryRole.includes('contador')) {
-                window.location.href = '/contador/dashboard'
-            } else if (primaryRole.includes('soporte') || primaryRole.includes('tecnico')) {
-                window.location.href = '/soporte/dashboard'
-            } else {
+        // 1️⃣ Super Admin
+        if (targetUser.is_super_admin || targetUser.is_superuser) {
+            console.log('🚀 Super Admin → /superadmin/dashboard')
+            window.location.href = '/superadmin/dashboard'
+            return
+        }
+
+        // 2️⃣ Verificar memberships
+        const memberships = targetUser.business_memberships || []
+        
+        if (memberships.length === 0) {
+            console.error('❌ ERROR: Usuario SIN memberships')
+            toast.error('Usuario sin negocio asignado. Contacta al administrador.')
+            return
+        }
+
+        // 3️⃣ Obtener el rol de la PRIMERA membership
+        const membershipRole = memberships[0].membership_role?.toUpperCase() || ''
+        
+        console.log('📋 Membership role detectado:', membershipRole)
+
+        // 4️⃣ Redirigir según membership_role
+        switch (membershipRole) {
+            case 'ADMIN':
+            case 'OWNER':
+            case 'MANAGER':
+                console.log('🏢 Admin → /business/dashboard')
                 window.location.href = '/business/dashboard'
-            }
+                break
+            
+            case 'CAJERO':
+                console.log('💵 Cajero → /cajero/dashboard')
+                window.location.href = '/cajero/dashboard'
+                break
+            
+            case 'VENDEDOR':
+                console.log('💰 Vendedor → /vendedor/dashboard')
+                window.location.href = '/vendedor/dashboard'
+                break
+            
+            case 'CONTADOR':
+                console.log('📊 Contador → /contador/dashboard')
+                window.location.href = '/contador/dashboard'
+                break
+            
+            case 'INVENTARIO':
+                console.log('📦 Inventario → /inventario/dashboard')
+                window.location.href = '/inventario/dashboard'
+                break
+            
+            case 'SOPORTE':
+            case 'TECNICO':
+                console.log('🔧 Soporte → /soporte/dashboard')
+                window.location.href = '/soporte/dashboard'
+                break
+            
+            default:
+                console.log('⚠️ Rol no reconocido:', membershipRole)
+                console.log('🔄 Redirigiendo a /business/dashboard por defecto')
+                window.location.href = '/business/dashboard'
+        }
 
-        } catch (err) {
-            console.error('❌ Error en login:', err)
-            toast.error('Error de conexión con el servidor')
+    } catch (err) {
+        console.error('❌ Error en login:', err)
+        toast.error('Error de conexión con el servidor')
+    }
+}
+
+    // ✅ DETERMINAR ROL PRINCIPAL
+    const determineMainRole = (user) => {
+        const memberships = user.business_memberships || []
+        const roles = user.roles || []
+        const permissions = user.permissions || []
+
+        // Prioridad 1: Verificar membership_role
+        if (memberships.length > 0) {
+            const membershipRole = memberships[0].membership_role?.toUpperCase()
+            if (membershipRole) {
+                console.log('📌 Rol desde membership:', membershipRole)
+                return membershipRole
+            }
+        }
+
+        // Prioridad 2: Verificar roles asignados
+        if (roles.length > 0) {
+            const roleName = roles[0].name?.toUpperCase()
+            if (roleName) {
+                console.log('📌 Rol desde roles:', roleName)
+                return roleName
+            }
+        }
+
+        // Prioridad 3: Verificar permisos
+        if (permissions.length > 0) {
+            const permissionCodes = permissions.map(p => p.code?.toLowerCase() || '')
+
+            if (permissionCodes.some(p => p.includes('caja') || p.includes('cashier'))) {
+                console.log('📌 Rol desde permisos: CAJERO')
+                return 'CAJERO'
+            }
+            if (permissionCodes.some(p => p.includes('ventas') || p.includes('sales'))) {
+                console.log('📌 Rol desde permisos: VENDEDOR')
+                return 'VENDEDOR'
+            }
+            if (permissionCodes.some(p => p.includes('inventario') || p.includes('inventory'))) {
+                console.log('📌 Rol desde permisos: INVENTARIO')
+                return 'INVENTARIO'
+            }
+            if (permissionCodes.some(p => p.includes('contabilidad') || p.includes('accounting'))) {
+                console.log('📌 Rol desde permisos: CONTADOR')
+                return 'CONTADOR'
+            }
+            if (permissionCodes.some(p => p.includes('soporte') || p.includes('support'))) {
+                console.log('📌 Rol desde permisos: SOPORTE')
+                return 'SOPORTE'
+            }
+        }
+
+        console.log('📌 Rol por defecto: ADMIN (sin rol específico)')
+        return 'ADMIN' // Por defecto, admin del negocio
+    }
+
+    // ✅ REDIRECCIÓN SEGÚN ROL
+    const redirectToPanel = (role, user) => {
+        console.log('🎯 Redirigiendo rol:', role)
+
+        switch (role) {
+            case 'ADMIN':
+            case 'OWNER':
+            case 'MANAGER':
+                console.log('🏢 Admin del negocio → /business/dashboard')
+                window.location.href = '/business/dashboard'
+                break
+
+            case 'CAJERO':
+                console.log('💵 Cajero → /cajero/dashboard')
+                window.location.href = '/cajero/dashboard'
+                break
+
+            case 'VENDEDOR':
+                console.log('💰 Vendedor → /vendedor/dashboard')
+                window.location.href = '/vendedor/dashboard'
+                break
+
+            case 'CONTADOR':
+                console.log('📊 Contador → /contador/dashboard')
+                window.location.href = '/contador/dashboard'
+                break
+
+            case 'INVENTARIO':
+                console.log('📦 Inventario → /inventario/dashboard')
+                window.location.href = '/inventario/dashboard'
+                break
+
+            case 'SOPORTE':
+            case 'TECNICO':
+                console.log('🔧 Soporte → /soporte/dashboard')
+                window.location.href = '/soporte/dashboard'
+                break
+
+            default:
+                // Si no tiene rol específico, redirigir al dashboard del negocio
+                console.log('🔄 Rol no reconocido → /business/dashboard')
+                window.location.href = '/business/dashboard'
         }
     }
 

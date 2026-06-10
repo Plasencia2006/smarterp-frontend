@@ -200,9 +200,29 @@ export default function UsersManager() {
         const business = JSON.parse(localStorage.getItem('smart_erp_business'))
 
         if (!business?.id) {
-            toast.error('No se pudo determinar el negocio. Intenta iniciar sesión nuevamente.')
-            console.error('❌ Business no encontrado en localStorage')
+            toast.error('No se pudo determinar el negocio.')
             return
+        }
+
+        // ✅ DETERMINAR EL ROL DE MEMBERSHIP
+        // Si hay initial_role_id, usar el nombre del rol
+        // Si no, usar el rol por defecto del formulario o 'USER'
+        let membershipRole = 'USER'
+
+        if (formData.initial_role_id && roles) {
+            const selectedRole = roles.find(r => r.id === formData.initial_role_id)
+            if (selectedRole) {
+                // Convertir nombre del rol a membership_role
+                // Ej: "Cajero Principal" → "CAJERO"
+                const roleName = selectedRole.name.toUpperCase()
+                if (roleName.includes('CAJERO')) membershipRole = 'CAJERO'
+                else if (roleName.includes('VENDEDOR')) membershipRole = 'VENDEDOR'
+                else if (roleName.includes('CONTADOR')) membershipRole = 'CONTADOR'
+                else if (roleName.includes('INVENTARIO')) membershipRole = 'INVENTARIO'
+                else if (roleName.includes('SOPORTE')) membershipRole = 'SOPORTE'
+                else if (roleName.includes('ADMIN')) membershipRole = 'ADMIN'
+                else membershipRole = roleName.split(' ')[0] // Primera palabra
+            }
         }
 
         const payload = {
@@ -215,32 +235,19 @@ export default function UsersManager() {
             position: formData.position || '',
             hire_date: formData.hire_date || null,
             initial_role_id: formData.initial_role_id || null,
-            business_id: business.id
+            business_id: business.id,
+            membership_role: membershipRole,  // ← ✅ ENVIAR EL ROL
+            role: membershipRole  // ← Por compatibilidad
         }
 
         console.log('📤 Payload completo:', payload)
-        console.log('🏢 Business ID:', business.id)
+        console.log('🎭 Membership role:', membershipRole)
 
         try {
             await createUserMutation.mutateAsync(payload)
         } catch (error) {
-            console.error('❌ Error completo:', error)
-            console.error('❌ Response data:', error.response?.data)
-
-            const errorData = error.response?.data
-            if (errorData?.detail) {
-                if (typeof errorData.detail === 'object') {
-                    Object.entries(errorData.detail).forEach(([field, messages]) => {
-                        toast.error(`${field}: ${Array.isArray(messages) ? messages.join(', ') : messages}`)
-                    })
-                } else {
-                    toast.error(errorData.detail)
-                }
-            } else if (errorData?.error) {
-                toast.error(errorData.error)
-            } else {
-                toast.error('Error al crear usuario. Revisa la consola para más detalles.')
-            }
+            console.error('❌ Error:', error.response?.data)
+            toast.error(error.response?.data?.error || 'Error al crear usuario')
         }
     }
 
@@ -762,22 +769,27 @@ export default function UsersManager() {
                             {selectedUser?.user?.email}
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-4">
-                        <div className="space-y-2">
-                            <Label>Seleccionar Rol</Label>
-                            <Select value={selectedRoleId} onValueChange={setSelectedRoleId}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Seleccionar rol" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {roles?.map((role) => (
-                                        <SelectItem key={role.id} value={role.id}>
-                                            {role.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="membership_role">Tipo de Usuario *</Label>
+                        <Select
+                            value={formData.membership_role || 'USER'}
+                            onValueChange={(value) => setFormData({ ...formData, membership_role: value })}
+                        >
+                            <SelectTrigger>
+                                <SelectValue placeholder="Seleccionar tipo" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="ADMIN">🏢 Administrador</SelectItem>
+                                <SelectItem value="CAJERO">💵 Cajero</SelectItem>
+                                <SelectItem value="VENDEDOR">💰 Vendedor</SelectItem>
+                                <SelectItem value="CONTADOR">📊 Contador</SelectItem>
+                                <SelectItem value="INVENTARIO">📦 Inventario</SelectItem>
+                                <SelectItem value="SOPORTE">🔧 Soporte Técnico</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                            Este rol determina a qué panel accederá el usuario
+                        </p>
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setIsAssignRoleModalOpen(false)}>

@@ -1,14 +1,15 @@
 // src/layouts/BusinessLayout.jsx
-// ✅ RESPONSABLE: Solo de la estructura visual y navegación
+// ✅ RESPONSABLE: Estructura visual, navegación y filtrado por rol
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import {
     LayoutDashboard, Menu, LogOut, ChevronDown, Building2,
     Bell, Search, Settings, User, X, ChevronRight,
     Package, ShoppingCart, Users, BarChart3, Wrench,
-    CreditCard, Shield, Activity, Users2
+    CreditCard, Shield, Activity, Users2, DollarSign,
+    FileText, ClipboardList, HeadphonesIcon
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -18,53 +19,169 @@ import { cn } from '@/lib/utils'
 export const BusinessLayout = () => {
     const navigate = useNavigate()
     const location = useLocation()
-    const { user, logout, loading } = useAuth()  // ← Solo para datos del usuario, NO para lógica
+    const { user, logout, loading } = useAuth()
 
     const [sidebarOpen, setSidebarOpen] = useState(true)
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
     const [userMenuOpen, setUserMenuOpen] = useState(false)
     const [notificationsOpen, setNotificationsOpen] = useState(false)
 
-    // ✅ Datos básicos para mostrar en UI (sin lógica de negocio)
+    // ✅ Datos básicos para mostrar en UI
     const businessName = user?.business_memberships?.[0]?.business_name || 'Mi Negocio'
     const userName = `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || user?.email
     const userAvatar = user?.first_name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'
+    const userRole = user?.business_memberships?.[0]?.membership_role?.toUpperCase() || 'USER'
 
-    // ✅ Menú de navegación - SOLO definición visual, sin filtrado por permisos
-    // El filtrado real lo hace ProtectedRoute en App.jsx o cada módulo individualmente
-    const navigationItems = [
-        {
-            section: 'Principal', items: [
-                { id: 'dashboard', label: 'Dashboard', path: '/business/dashboard', icon: LayoutDashboard },
-            ]
-        },
-        {
-            section: 'Operaciones', items: [
-                { id: 'sales', label: 'Ventas', path: '/business/sales', icon: ShoppingCart },
-                { id: 'inventory', label: 'Inventario', path: '/business/inventory', icon: Package },
-                { id: 'cashier', label: 'Caja', path: '/business/cashier', icon: CreditCard },
-                { id: 'services', label: 'Servicios', path: '/business/services', icon: Wrench },
-            ]
-        },
-        {
-            section: 'Gestión', items: [
-                { id: 'users', label: 'Usuarios', path: '/business/users', icon: Users },
-                { id: 'roles', label: 'Roles', path: '/business/roles', icon: Shield },
-                { id: 'members', label: 'Miembros', path: '/business/members', icon: Users2 },
-            ]
-        },
-        {
-            section: 'Análisis', items: [
-                { id: 'reports', label: 'Reportes', path: '/business/reports', icon: BarChart3 },
-                { id: 'audit', label: 'Auditoría', path: '/business/audit', icon: Activity },
-            ]
-        },
-        {
-            section: 'Configuración', items: [
-                { id: 'settings', label: 'Configuración', path: '/business/settings', icon: Settings },
-            ]
-        },
-    ]
+    // ✅ CONFIGURACIÓN DE MENÚS POR ROL
+    const menuConfig = useMemo(() => {
+        const allMenus = {
+            // 🏢 ADMIN - Acceso completo
+            ADMIN: [
+                {
+                    section: 'Principal', items: [
+                        { id: 'dashboard', label: 'Dashboard', path: '/business/dashboard', icon: LayoutDashboard },
+                    ]
+                },
+                {
+                    section: 'Operaciones', items: [
+                        { id: 'sales', label: 'Ventas', path: '/business/sales', icon: ShoppingCart },
+                        { id: 'inventory', label: 'Inventario', path: '/business/inventory', icon: Package },
+                        { id: 'cashier', label: 'Caja', path: '/business/cashier', icon: CreditCard },
+                        { id: 'services', label: 'Servicios', path: '/business/services', icon: Wrench },
+                    ]
+                },
+                {
+                    section: 'Gestión', items: [
+                        { id: 'users', label: 'Usuarios', path: '/business/users', icon: Users },
+                        { id: 'roles', label: 'Roles', path: '/business/roles', icon: Shield },
+                        { id: 'members', label: 'Miembros', path: '/business/members', icon: Users2 },
+                    ]
+                },
+                {
+                    section: 'Análisis', items: [
+                        { id: 'reports', label: 'Reportes', path: '/business/reports', icon: BarChart3 },
+                        { id: 'audit', label: 'Auditoría', path: '/business/audit', icon: Activity },
+                    ]
+                },
+                {
+                    section: 'Configuración', items: [
+                        { id: 'settings', label: 'Configuración', path: '/business/settings', icon: Settings },
+                    ]
+                },
+            ],
+
+            // 💵 CAJERO - Solo caja y ventas básicas
+            CAJERO: [
+                {
+                    section: 'Principal', items: [
+                        { id: 'dashboard', label: 'Mi Caja', path: '/cajero/dashboard', icon: LayoutDashboard },
+                    ]
+                },
+                {
+                    section: 'Operaciones', items: [
+                        { id: 'cashier', label: 'Caja', path: '/business/cashier', icon: CreditCard },
+                        { id: 'sales', label: 'Ventas', path: '/business/sales', icon: ShoppingCart },
+                    ]
+                },
+                {
+                    section: 'Reportes', items: [
+                        { id: 'reports', label: 'Mis Ventas', path: '/business/reports', icon: BarChart3 },
+                    ]
+                },
+            ],
+
+            // 💰 VENDEDOR - Solo ventas y catálogo
+            VENDEDOR: [
+                {
+                    section: 'Principal', items: [
+                        { id: 'dashboard', label: 'Mis Ventas', path: '/vendedor/dashboard', icon: LayoutDashboard },
+                    ]
+                },
+                {
+                    section: 'Operaciones', items: [
+                        { id: 'sales', label: 'Nueva Venta', path: '/business/sales', icon: ShoppingCart },
+                        { id: 'inventory', label: 'Catálogo', path: '/business/inventory', icon: Package },
+                    ]
+                },
+                {
+                    section: 'Reportes', items: [
+                        { id: 'reports', label: 'Mi Rendimiento', path: '/business/reports', icon: BarChart3 },
+                    ]
+                },
+            ],
+
+            // 📊 CONTADOR - Solo reportes financieros y auditoría
+            CONTADOR: [
+                {
+                    section: 'Principal', items: [
+                        { id: 'dashboard', label: 'Panel Contable', path: '/contador/dashboard', icon: LayoutDashboard },
+                    ]
+                },
+                {
+                    section: 'Finanzas', items: [
+                        { id: 'reports', label: 'Reportes Financieros', path: '/business/reports', icon: BarChart3 },
+                        { id: 'audit', label: 'Auditoría', path: '/business/audit', icon: Activity },
+                    ]
+                },
+                {
+                    section: 'Consultas', items: [
+                        { id: 'sales', label: 'Historial Ventas', path: '/business/sales', icon: ShoppingCart },
+                        { id: 'inventory', label: 'Valor Inventario', path: '/business/inventory', icon: Package },
+                    ]
+                },
+            ],
+
+            // 📦 INVENTARIO - Solo inventario y stock
+            INVENTARIO: [
+                {
+                    section: 'Principal', items: [
+                        { id: 'dashboard', label: 'Control Inventario', path: '/inventario/dashboard', icon: LayoutDashboard },
+                    ]
+                },
+                {
+                    section: 'Gestión', items: [
+                        { id: 'inventory', label: 'Inventario', path: '/business/inventory', icon: Package },
+                    ]
+                },
+                {
+                    section: 'Reportes', items: [
+                        { id: 'reports', label: 'Reportes Stock', path: '/business/reports', icon: BarChart3 },
+                    ]
+                },
+            ],
+
+            // 🔧 SOPORTE - Solo servicios y tickets
+            SOPORTE: [
+                {
+                    section: 'Principal', items: [
+                        { id: 'dashboard', label: 'Panel Soporte', path: '/soporte/dashboard', icon: LayoutDashboard },
+                    ]
+                },
+                {
+                    section: 'Operaciones', items: [
+                        { id: 'services', label: 'Servicios', path: '/business/services', icon: Wrench },
+                    ]
+                },
+                {
+                    section: 'Reportes', items: [
+                        { id: 'reports', label: 'Tickets', path: '/business/reports', icon: BarChart3 },
+                    ]
+                },
+            ],
+
+            // 👤 USER - Menú mínimo por defecto
+            USER: [
+                {
+                    section: 'Principal', items: [
+                        { id: 'dashboard', label: 'Dashboard', path: '/business/dashboard', icon: LayoutDashboard },
+                    ]
+                },
+            ],
+        }
+
+        // Retornar el menú correspondiente al rol, o USER por defecto
+        return allMenus[userRole] || allMenus.USER
+    }, [userRole])
 
     if (loading) {
         return (
@@ -76,7 +193,7 @@ export const BusinessLayout = () => {
 
     return (
         <div className="min-h-screen bg-gray-50">
-            {/* ==================== SIDEBAR (Solo UI) ==================== */}
+            {/* ==================== SIDEBAR ==================== */}
             <aside className={cn(
                 "fixed left-0 top-0 z-40 h-screen transition-all duration-300 bg-white border-r",
                 sidebarOpen ? "w-64" : "w-20",
@@ -93,7 +210,9 @@ export const BusinessLayout = () => {
                             {sidebarOpen && (
                                 <div className="min-w-0">
                                     <p className="font-semibold text-sm truncate">{businessName}</p>
-                                    <Badge variant="outline" className="text-[10px]">{user?.roles?.[0]?.name || 'Miembro'}</Badge>
+                                    <Badge variant="outline" className="text-[10px]">
+                                        {userRole === 'ADMIN' ? 'Administrador' : userRole}
+                                    </Badge>
                                 </div>
                             )}
                         </div>
@@ -102,9 +221,9 @@ export const BusinessLayout = () => {
                         </Button>
                     </div>
 
-                    {/* Navegación (Solo enlaces visuales) */}
+                    {/* ✅ Navegación FILTRADA por rol */}
                     <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-6">
-                        {navigationItems.map((section) => (
+                        {menuConfig.map((section) => (
                             <div key={section.section}>
                                 {sidebarOpen && (
                                     <h3 className="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
@@ -241,9 +360,9 @@ export const BusinessLayout = () => {
                     </div>
                 </header>
 
-                {/* ✅ ÁREA DE CONTENIDO - Aquí se renderizan los módulos */}
+                {/* ÁREA DE CONTENIDO */}
                 <main className="p-4 lg:p-6">
-                    <Outlet />  {/* ← BusinessDashboard, UsersManager, etc. se renderizan aquí */}
+                    <Outlet />
                 </main>
             </div>
 

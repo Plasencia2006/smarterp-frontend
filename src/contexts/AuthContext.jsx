@@ -6,18 +6,77 @@ import { authAPI } from '@/services/django.api'
 const TOKEN_KEY = import.meta.env.VITE_TOKEN_KEY || 'smart_erp_token'
 const REFRESH_KEY = import.meta.env.VITE_REFRESH_KEY || 'smart_erp_refresh'
 const USER_KEY = import.meta.env.VITE_USER_KEY || 'smart_erp_user'
-const BUSINESS_KEY = import.meta.env.VITE_BUSINESS_KEY || 'smart_erp_business' //  ESTA FALTABA
+const BUSINESS_KEY = import.meta.env.VITE_BUSINESS_KEY || 'smart_erp_business'
 
 const AuthContext = createContext(null)
+
+// ✅ FUNCIÓN HELPER: Extraer mensaje de error SIEMPRE como string
+const extractErrorMessage = (error) => {
+    // Caso 1: No hay response (error de red)
+    if (!error.response) {
+        if (error.request) return 'No hay conexión con el servidor'
+        return error.message || 'Error de conexión'
+    }
+
+    const data = error.response.data
+    const status = error.response.status
+
+    // Caso 2: data.detail es un string directo
+    if (typeof data?.detail === 'string') {
+        return data.detail
+    }
+
+    // Caso 3: data.detail es un array
+    if (Array.isArray(data?.detail)) {
+        return data.detail.join(', ')
+    }
+
+    // Caso 4: data.detail es un objeto (ej: { password: ["..."] })
+    if (data?.detail && typeof data.detail === 'object') {
+        const firstKey = Object.keys(data.detail)[0]
+        if (firstKey) {
+            const value = data.detail[firstKey]
+            return Array.isArray(value) ? value.join(', ') : String(value)
+        }
+    }
+
+    // Caso 5: non_field_errors (típico de Django)
+    if (data?.non_field_errors) {
+        return Array.isArray(data.non_field_errors)
+            ? data.non_field_errors.join(', ')
+            : String(data.non_field_errors)
+    }
+
+    // Caso 6: error directo
+    if (typeof data?.error === 'string') {
+        return data.error
+    }
+
+    // Caso 7: data es un objeto con campos (ej: { email: ["..."] })
+    if (data && typeof data === 'object') {
+        const firstKey = Object.keys(data)[0]
+        if (firstKey) {
+            const value = data[firstKey]
+            const msg = Array.isArray(value) ? value[0] : value
+            if (typeof msg === 'string') return `${firstKey}: ${msg}`
+        }
+    }
+
+    // Caso 8: Mensajes por status
+    switch (status) {
+        case 400: return 'Datos inválidos'
+        case 401: return 'Email o contraseña incorrectos'
+        case 403: return 'Acceso denegado'
+        case 404: return 'Recurso no encontrado'
+        case 500: return 'Error del servidor. Intente más tarde'
+        default: return 'Error al iniciar sesión'
+    }
+}
 
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)
-
-    const TOKEN_KEY = import.meta.env.VITE_TOKEN_KEY || 'smart_erp_token'
-    const REFRESH_KEY = import.meta.env.VITE_REFRESH_KEY || 'smart_erp_refresh'
-    const USER_KEY = import.meta.env.VITE_USER_KEY || 'smart_erp_user'
 
     // Cargar usuario desde localStorage
     useEffect(() => {
@@ -43,6 +102,7 @@ export const AuthProvider = ({ children }) => {
         localStorage.removeItem(TOKEN_KEY)
         localStorage.removeItem(REFRESH_KEY)
         localStorage.removeItem(USER_KEY)
+        localStorage.removeItem(BUSINESS_KEY)
         setUser(null)
     }, [])
 
@@ -83,49 +143,18 @@ export const AuthProvider = ({ children }) => {
             // Actualizar estado
             setUser(userData)
 
-            // Configurar axios
-            if (typeof djangoApi !== 'undefined' && djangoApi) {
-                djangoApi.defaults.headers.common['Authorization'] = `Bearer ${access}`
-            }
-
-            console.log('✅ Login exitoso')
+            console.log('✅ Login exitoso:', userData.email)
             return { success: true, user: userData }
 
         } catch (err) {
             console.error('❌ Login error:', err)
+            console.error('❌ Response data:', err.response?.data)
 
-            // ✅ MANEJO DE ERRORES ESPECÍFICOS
-            let message = 'Error al iniciar sesión'
+            // ✅ EXTRAER MENSAJE COMO STRING (SIEMPRE)
+            const message = extractErrorMessage(err)
 
-            if (err.response) {
-                // Error del servidor
-                const status = err.response.status
-                const data = err.response.data
-
-                switch (status) {
-                    case 400:
-                        message = data.detail || data.error || 'Datos inválidos'
-                        break
-                    case 401:
-                        // ✅ MENSAJE CLARO PARA CREDENCIALES INCORRECTAS
-                        message = 'Email o contraseña incorrectos'
-                        break
-                    case 403:
-                        message = 'Cuenta suspendida o inactiva'
-                        break
-                    case 500:
-                        message = 'Error del servidor. Intente más tarde'
-                        break
-                    default:
-                        message = data.detail || data.error || message
-                }
-            } else if (err.request) {
-                // No hubo respuesta del servidor
-                message = 'No hay conexión con el servidor'
-            } else {
-                // Error al configurar la petición
-                message = err.message || message
-            }
+            console.log('📝 Mensaje de error extraído:', message)
+            console.log('📝 Tipo de mensaje:', typeof message)
 
             setError(message)
             return { success: false, error: message }
@@ -135,16 +164,11 @@ export const AuthProvider = ({ children }) => {
     }
 
     const logout = useCallback(() => {
-        // ❌ NO llames a la API si no existe (evita 404)
-        // authAPI.logout().catch(() => {})
-
-        // ✅ Solo limpia localStorage y estado
         localStorage.removeItem(TOKEN_KEY)
         localStorage.removeItem(REFRESH_KEY)
         localStorage.removeItem(USER_KEY)
+        localStorage.removeItem(BUSINESS_KEY)
         setUser(null)
-
-        // ✅ Redirige al login
         window.location.href = '/login'
     }, [])
 

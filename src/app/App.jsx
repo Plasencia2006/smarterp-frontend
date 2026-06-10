@@ -1,5 +1,3 @@
-// src/app/App.jsx
-
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
@@ -23,12 +21,10 @@ import { UsersPage } from '@/features/superadmin/UsersPage'
 import GlobalReportsPage from '@/features/superadmin/GlobalReportsPage'
 import GlobalSettingsPage from '@/features/superadmin/GlobalSettingsPage'
 import BackupsPage from '@/features/superadmin/BackupsPage'
-import SuperAuditPage from '@/features/superadmin/AuditPage'  // ← ✅ Renombrado para evitar conflicto
+import SuperAuditPage from '@/features/superadmin/AuditPage'
 
 // Páginas - Business (Admin del Negocio)
 import BusinessDashboard from '@/features/business/BusinessDashboard'
-
-
 import UsersManager from '@/features/business/UsersManager'
 import RolesManager from '@/features/business/RolesManager'
 import MembersManager from '@/features/business/MembersManager'
@@ -38,15 +34,12 @@ import ReportsPage from '@/features/business/ReportsPage'
 import SettingsPage from '@/features/business/SettingsPage'
 import AuditPage from '@/features/business/AuditPage'
 
-// ✅ Módulos de negocio - Comentar los que NO existen aún para evitar errores
-// import UsersManager from '@/features/business/modules/users/UsersManager'
-// import RolesManager from '@/features/business/RolesManager'
-// import MembersManager from '@/features/business/MembersManager'
-// import InventoryManager from '@/features/business/InventoryManager'
-// import SalesManager from '@/features/business/SalesManager'
-// import ReportsPage from '@/features/business/ReportsPage'
-// import SettingsPage from '@/features/business/SettingsPage'
-// import AuditPage from '@/features/business/AuditPage'
+// ✅ NUEVO: Paneles por Rol Operativo
+import CajeroDashboard from '@/features/cajero/CajeroDashboard'
+import ContadorDashboard from '@/features/contador/ContadorDashboard'
+import InventarioDashboard from '@/features/inventario/InventarioDashboard'
+import SoporteDashboard from '@/features/soporte/SoporteDashboard'
+import VendedorDashboard from '@/features/vendedor/VendedorDashboard'
 
 // Placeholder para módulos en desarrollo
 const Placeholder = ({ title }) => (
@@ -68,8 +61,7 @@ const queryClient = new QueryClient({
     },
 })
 
-// ✅ Componente Login con verificación de autenticación - VERSIÓN FINAL
-// ✅ Componente Login con verificación de autenticación - CON DEBUG
+// ✅ Componente Login con verificación de autenticación
 function LoginWithAuthCheck() {
     const { isAuthenticated, loading, user } = useAuth()
 
@@ -82,53 +74,36 @@ function LoginWithAuthCheck() {
     }
 
     if (isAuthenticated && user) {
-        // 🔍 DEBUG: Ver qué tiene realmente el objeto user
-        console.log('🔍 [DEBUG] User object completo:', JSON.stringify(user, null, 2))
-        console.log('🔍 [DEBUG] business_memberships:', user.business_memberships)
-        console.log('🔍 [DEBUG] memberships:', user.memberships)
-        console.log('🔍 [DEBUG] businesses:', user.businesses)
-        console.log('🔍 [DEBUG] roles:', user.roles)
-        console.log('🔍 [DEBUG] is_super_admin:', user.is_super_admin)
-
         // 1️⃣ Super Admin
-        if (user.is_super_admin) {
-            console.log('🚀 Super Admin → /superadmin/dashboard')
+        if (user.is_super_admin || user.is_superuser) {
             window.location.href = '/superadmin/dashboard'
             return null
         }
 
-        // 2️⃣ ✅ Verificar negocios asignados - CON MÚLTIPLES NOMBRES POSIBLES
+        // 2️⃣ Verificar negocios asignados
         const hasBusiness =
             (user.business_memberships && user.business_memberships.length > 0) ||
             (user.memberships && user.memberships.length > 0) ||
             (user.businesses && user.businesses.length > 0) ||
-            (user.business && user.business.id) // Si es un solo negocio como objeto
-
-        console.log('✅ [DEBUG] hasBusiness:', hasBusiness)
+            (user.business && user.business.id)
 
         if (!hasBusiness) {
-            console.warn('⚠️ Usuario SIN negocios detectados:', user.email)
-            // window.location.href = '/no-business-access'  // ← Descomenta cuando quieras
             return (
                 <div className="min-h-screen flex items-center justify-center bg-gray-50">
                     <div className="text-center max-w-md p-8">
-                        <h2 className="text-2xl font-bold mb-4 text-red-600">⚠️ Debug Mode</h2>
+                        <h2 className="text-2xl font-bold mb-4 text-red-600">⚠️ Sin Negocio</h2>
                         <p className="text-muted-foreground mb-4">
-                            El usuario NO tiene negocios detectados. Revisa la consola (F12) para ver el objeto user completo.
+                            El usuario no tiene negocios asignados. Contacta al administrador.
                         </p>
-                        <pre className="text-xs bg-gray-100 p-4 rounded overflow-auto max-h-64">
-                            {JSON.stringify(user, null, 2)}
-                        </pre>
-                        <Button onClick={() => window.location.href = '/login'} className="mt-4" variant="outline">
+                        <button onClick={() => window.location.href = '/login'} className="mt-4 px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">
                             Volver al Login
-                        </Button>
+                        </button>
                     </div>
                 </div>
             )
         }
 
-        // 3️⃣ Todos van a select-business
-        console.log('🚀 Usuario con negocio → /select-business')
+        // 3️⃣ Redirigir según rol (el login ya hizo la redirección, esto es fallback)
         window.location.href = '/select-business'
         return null
     }
@@ -167,9 +142,10 @@ function AppRoutes() {
                 <Route path="settings" element={<GlobalSettingsPage />} />
                 <Route path="backups" element={<BackupsPage />} />
                 <Route path="reports" element={<GlobalReportsPage />} />
-                <Route path="audit" element={<SuperAuditPage />} />  {/* ← ✅ Usar nombre renombrado */}
+                <Route path="audit" element={<SuperAuditPage />} />
             </Route>
 
+            {/* 🔐 BUSINESS (ADMIN DEL NEGOCIO) */}
             <Route path="/business/*" element={
                 <ProtectedRoute>
                     <BusinessLayout />
@@ -178,109 +154,104 @@ function AppRoutes() {
                 <Route index element={<BusinessDashboard />} />
                 <Route path="dashboard" element={<BusinessDashboard />} />
 
-                {/* ✅ CAMBIAR: Reemplazar Placeholder por componente real */}
                 <Route path="users/*" element={
                     <ProtectedRoute requiredPermission="users.view">
-                        <UsersManager />  {/* ← Cambiar de <Placeholder /> a <UsersManager /> */}
+                        <UsersManager />
                     </ProtectedRoute>
                 } />
 
                 <Route path="roles/*" element={
                     <ProtectedRoute requiredPermission="roles.view">
-                        <RolesManager />  {/* ← Cambiar de <Placeholder /> a <RolesManager /> */}
+                        <RolesManager />
                     </ProtectedRoute>
                 } />
 
                 <Route path="members/*" element={
                     <ProtectedRoute requiredPermission="users.view">
-                        <MembersManager />  {/* ← Cambiar de <Placeholder /> a <MembersManager /> */}
+                        <MembersManager />
                     </ProtectedRoute>
                 } />
 
                 <Route path="inventory/*" element={
                     <ProtectedRoute requiredPermission="inventory.read">
-                        <InventoryManager />  {/* ← Cambiar de <Placeholder /> a <InventoryManager /> */}
+                        <InventoryManager />
                     </ProtectedRoute>
                 } />
 
                 <Route path="sales/*" element={
                     <ProtectedRoute requiredPermission="sales.view">
-                        <SalesManager />  {/* ← Cambiar de <Placeholder /> a <SalesManager /> */}
+                        <SalesManager />
                     </ProtectedRoute>
                 } />
 
                 <Route path="reports/*" element={
                     <ProtectedRoute requiredPermission="reports.view">
-                        <ReportsPage />  {/* ← Cambiar de <Placeholder /> a <ReportsPage /> */}
+                        <ReportsPage />
                     </ProtectedRoute>
                 } />
 
                 <Route path="settings/*" element={
                     <ProtectedRoute requiredPermission="business.update">
-                        <SettingsPage />  {/* ← Cambiar de <Placeholder /> a <SettingsPage /> */}
+                        <SettingsPage />
                     </ProtectedRoute>
                 } />
 
                 <Route path="audit/*" element={
                     <ProtectedRoute requiredPermission="audit.view">
-                        <AuditPage />  {/* ← Cambiar de <Placeholder /> a <AuditPage /> */}
-                    </ProtectedRoute>
-                } />
-
-                {/* Mantener Placeholder solo para módulos que aún no existen */}
-                <Route path="cashier/*" element={
-                    <ProtectedRoute requiredPermission="cashier.manage">
-                        <Placeholder title="Caja / Punto de Venta" />
-                    </ProtectedRoute>
-                } />
-
-                <Route path="services/*" element={
-                    <ProtectedRoute requiredPermission="services.view">
-                        <Placeholder title="Servicios" />
+                        <AuditPage />
                     </ProtectedRoute>
                 } />
             </Route>
 
-            {/* 🔐 ROLES OPERATIVOS */}
-            <Route path="/vendedor/*" element={
-                <ProtectedRoute requiredPermission="sales.create">
-                    <BusinessLayout />
-                </ProtectedRoute>
-            }>
-                <Route index element={<Placeholder title="Panel Vendedor" />} />
-                <Route path="dashboard" element={<Placeholder title="Panel Vendedor" />} />
-            </Route>
-
+            {/* ✅ CAJERO - SIN requiredPermission (el rol ya se verifica en login) */}
             <Route path="/cajero/*" element={
-                <ProtectedRoute requiredPermission="cashier.manage">
+                <ProtectedRoute>
                     <BusinessLayout />
                 </ProtectedRoute>
             }>
-                <Route index element={<Placeholder title="Panel Cajero" />} />
+                <Route index element={<CajeroDashboard />} />
+                <Route path="dashboard" element={<CajeroDashboard />} />
+                <Route path="pos/*" element={<CajeroDashboard />} />
             </Route>
 
+            {/* ✅ VENDEDOR - SIN requiredPermission */}
+            <Route path="/vendedor/*" element={
+                <ProtectedRoute>
+                    <BusinessLayout />
+                </ProtectedRoute>
+            }>
+                <Route index element={<VendedorDashboard />} />
+                <Route path="dashboard" element={<VendedorDashboard />} />
+            </Route>
+
+            {/* ✅ INVENTARIO - SIN requiredPermission */}
             <Route path="/inventario/*" element={
-                <ProtectedRoute requiredPermission="inventory.read">
+                <ProtectedRoute>
                     <BusinessLayout />
                 </ProtectedRoute>
             }>
-                <Route index element={<Placeholder title="Panel Inventario" />} />
+                <Route index element={<InventarioDashboard />} />
+                <Route path="dashboard" element={<InventarioDashboard />} />
             </Route>
 
+            {/* ✅ CONTADOR - SIN requiredPermission */}
             <Route path="/contador/*" element={
-                <ProtectedRoute requiredPermission="reports.financial">
+                <ProtectedRoute>
                     <BusinessLayout />
                 </ProtectedRoute>
             }>
-                <Route index element={<Placeholder title="Panel Contador" />} />
+                <Route index element={<ContadorDashboard />} />
+                <Route path="dashboard" element={<ContadorDashboard />} />
             </Route>
 
+            {/* ✅ SOPORTE - SIN requiredPermission */}
             <Route path="/soporte/*" element={
-                <ProtectedRoute requiredPermission="services.view">
+                <ProtectedRoute>
                     <BusinessLayout />
                 </ProtectedRoute>
             }>
-                <Route index element={<Placeholder title="Panel Soporte" />} />
+                <Route index element={<SoporteDashboard />} />
+                <Route path="dashboard" element={<SoporteDashboard />} />
             </Route>
 
             {/* ❌ 404 */}

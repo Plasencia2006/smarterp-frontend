@@ -21,22 +21,39 @@ const djangoApi = axios.create({
 })
 
 // =============================================================================
-// 🔐 INTERCEPTORES
+// 🔐 INTERCEPTOR DE REQUEST (ÚNICO)
 // =============================================================================
-
-// Interceptor de Request - Agrega token y business_id automáticamente
 djangoApi.interceptors.request.use(
     (config) => {
+        // Agregar token
         const token = localStorage.getItem(TOKEN_KEY)
-        const business = localStorage.getItem(BUSINESS_KEY)
-        const businessId = business ? JSON.parse(business).id : null
-
         if (token) {
             config.headers.Authorization = `Bearer ${token}`
         }
 
+        // Agregar X-Business-ID
+        let businessId = null
+
+        try {
+            const business = JSON.parse(localStorage.getItem(BUSINESS_KEY) || 'null')
+            if (business?.id) {
+                businessId = business.id
+            }
+        } catch (e) { }
+
+        if (!businessId) {
+            try {
+                const user = JSON.parse(localStorage.getItem(USER_KEY) || 'null')
+                const membership = user?.business_memberships?.[0]
+                if (membership) {
+                    businessId = membership.business || membership.id
+                }
+            } catch (e) { }
+        }
+
         if (businessId && !config.skipBusinessHeader) {
             config.headers['X-Business-ID'] = businessId
+            console.log('🔗 [Interceptor] X-Business-ID agregado:', businessId)
         }
 
         return config
@@ -44,86 +61,127 @@ djangoApi.interceptors.request.use(
     (error) => Promise.reject(error)
 )
 
-// Interceptor de Response - Maneja refresh token y errores 401
+// =============================================================================
+// 🔐 INTERCEPTOR DE RESPONSE (ÚNICO - VERSIÓN ROBUSTA)
+// =============================================================================
 djangoApi.interceptors.response.use(
+    // Respuesta exitosa
     (response) => response,
+
+    // ❌ Manejo de errores - VERSIÓN ROBUSTA CON TRY-CATCH
     async (error) => {
-        const originalRequest = error.config
+        // ✅ PROTEGER TODO EL INTERCEPTOR
+        try {
+            // Verificar que error.config exista antes de acceder a sus propiedades
+            const originalRequest = error?.config
 
-        // Si es 401 y no es un re-intento, intentar refresh
-        if (error.response?.status === 401 && !originalRequest._retry) {
-            originalRequest._retry = true
-
-            try {
-                const refresh = localStorage.getItem(REFRESH_KEY)
-                if (!refresh) throw new Error('No refresh token')
-
-                // Intentar obtener nuevo access token
-                const response = await axios.post(`${API_URL}/auth/token/refresh/`, {
-                    refresh: refresh
-                }, {
-                    headers: { 'Content-Type': 'application/json' }
-                })
-
-                const { access } = response.data
-                localStorage.setItem(TOKEN_KEY, access)
-
-                // Reintentar la petición original con el nuevo token
-                originalRequest.headers.Authorization = `Bearer ${access}`
-                return djangoApi(originalRequest)
-
-            } catch (refreshError) {
-                // Refresh falló - limpiar sesión completa
-                localStorage.removeItem(TOKEN_KEY)
-                localStorage.removeItem(REFRESH_KEY)
-                localStorage.removeItem(BUSINESS_KEY)
-                localStorage.removeItem(USER_KEY)
-
-                // Redirigir a login
-                if (window.location.pathname !== '/login') {
-                    window.location.href = '/login'
-                }
-                return Promise.reject(refreshError)
+            // Si no hay config, no podemos hacer nada más
+            if (!originalRequest) {
+                console.warn('⚠️ [Interceptor] Error sin config:', error?.message)
+                return Promise.reject(error)
             }
+
+            // ✅ VERIFICACIÓN SEGURA: acceder a url solo si existe
+            const requestUrl = originalRequest?.url || ''
+
+            // ✅ NO intentar refresh si es el endpoint de login o refresh
+            if (requestUrl.includes('/auth/login/') ||
+                requestUrl.includes('/auth/token/refresh/')) {
+                return Promise.reject(error)
+            }
+
+            // Si es 401 y no es un re-intento, intentar refresh
+            if (error.response?.status === 401 && !originalRequest._retry) {
+                originalRequest._retry = true
+
+                try {
+                    const refresh = localStorage.getItem(REFRESH_KEY)
+
+                    // ✅ VALIDAR QUE EXISTA REFRESH TOKEN
+                    if (!refresh) {
+                        console.warn('⚠️ No hay refresh token, redirigiendo a login')
+                        clearSession()
+                        redirectToLogin()
+                        return Promise.reject(new Error('No refresh token'))
+                    }
+
+                    // Intentar obtener nuevo access token
+                    const response = await axios.post(
+                        `${API_URL}/auth/token/refresh/`,
+                        { refresh: refresh },
+                        { headers: { 'Content-Type': 'application/json' } }
+                    )
+
+                    const { access } = response.data
+                    localStorage.setItem(TOKEN_KEY, access)
+
+                    // Reintentar la petición original con el nuevo token
+                    originalRequest.headers.Authorization = `Bearer ${access}`
+                    return djangoApi(originalRequest)
+
+                } catch (refreshError) {
+                    console.error('❌ Error al refresh token:', refreshError)
+                    clearSession()
+                    redirectToLogin()
+                    return Promise.reject(refreshError)
+                }
+            }
+
+            // ✅ Manejo especial para otros errores
+            if (error.response?.status === 403) {
+                console.warn(`⚠️ [Interceptor] Acceso denegado en ${requestUrl}`)
+            }
+
+            if (error.response?.status >= 500) {
+                console.error('❌ [Interceptor] Error del servidor:', error.response?.data)
+            }
+
+        } catch (interceptorError) {
+            // ✅ NUNCA dejar que el interceptor falle
+            console.error('❌ [Interceptor] Error interno en el interceptor:', interceptorError)
         }
 
+        // ✅ SIEMPRE retornar el error original
         return Promise.reject(error)
     }
 )
 
 // =============================================================================
+// 🛠️ FUNCIONES HELPER
+// =============================================================================
+
+/**
+ * Limpiar toda la sesión del localStorage
+ */
+const clearSession = () => {
+    localStorage.removeItem(TOKEN_KEY)
+    localStorage.removeItem(REFRESH_KEY)
+    localStorage.removeItem(BUSINESS_KEY)
+    localStorage.removeItem(USER_KEY)
+}
+
+/**
+ * Redirigir al login si no estamos ya ahí
+ */
+const redirectToLogin = () => {
+    if (window.location.pathname !== '/login') {
+        window.location.href = '/login'
+    }
+}
+
+// =============================================================================
 // 🔐 AUTH API
 // =============================================================================
 export const authAPI = {
-    /**
-     * Iniciar sesión - Devuelve tokens + user data con roles/permisos
-     */
     login: (credentials) => djangoApi.post('/auth/login/', credentials),
-
-    /**
-     * Registrar nuevo usuario (Super Admin)
-     */
     register: (data) => djangoApi.post('/auth/register/', data),
-
-    /**
-     * Refresh de token
-     */
     refreshToken: (refresh) => djangoApi.post('/auth/token/refresh/', { refresh }),
-
-    /**
-     * Obtener perfil del usuario actual con roles y permisos
-     */
     getProfile: () => djangoApi.get('/auth/me/'),
-
-    /**
-     * Cerrar sesión (invalidar tokens si el backend lo soporta)
-     */
     logout: () => djangoApi.post('/auth/logout/'),
 
-    // Gestión de usuarios (Super Admin)
     listUsers: (params = {}) => {
         const qs = new URLSearchParams(params).toString()
-        return djangoApi.get(`/auth/users/?${qs}`)
+        return djangoApi.get(`/auth/users/${qs ? '?' + qs : ''}`)
     },
     getUser: (id) => djangoApi.get(`/auth/users/${id}/`),
     updateUser: (id, data) => djangoApi.patch(`/auth/users/${id}/`, data),
@@ -131,171 +189,79 @@ export const authAPI = {
 }
 
 // =============================================================================
-// 🏢 BUSINESS API (Negocios - Super Admin)
+// 🏢 BUSINESS API
 // =============================================================================
 export const businessAPI = {
-    // ── Negocios ──────────────────────────────────────────────────────────
-
-    /**
-     * Listar negocios (con paginación y filtros)
-     */
     list: (params = {}) => {
         const qs = new URLSearchParams(params).toString()
-        return djangoApi.get(`/business/businesses/?${qs}`)
+        return djangoApi.get(`/business/businesses/${qs ? '?' + qs : ''}`)
     },
-
-    /**
-     * Obtener detalle de un negocio
-     */
     get: (id) => djangoApi.get(`/business/businesses/${id}/`),
-
-    /**
-     * Crear nuevo negocio
-     */
     create: (data) => djangoApi.post('/business/businesses/', data),
-
-    /**
-     * Actualizar negocio (PATCH)
-     */
     update: (id, data) => djangoApi.patch(`/business/businesses/${id}/`, data),
-
-    /**
-     * Eliminar negocio
-     */
     delete: (id) => djangoApi.delete(`/business/businesses/${id}/`),
-
-    // ── Membresías ────────────────────────────────────────────────────────
 
     listMemberships: (params = {}) => {
         const qs = new URLSearchParams(params).toString()
-        return djangoApi.get(`/business/memberships/?${qs}`)
+        return djangoApi.get(`/business/memberships/${qs ? '?' + qs : ''}`)
     },
-
     assignAdmin: (data) => djangoApi.post('/business/memberships/assign/', data),
-
     getBusinessAdmins: (businessId) =>
         djangoApi.get(`/business/memberships/business/${businessId}/admins/`),
-
     revokeAccess: (membershipId) =>
         djangoApi.post(`/business/memberships/${membershipId}/revoke/`),
 
-    // ── Usuarios del Negocio (BusinessUser) - Gestión por Admin de Negocio ─
-
-    /**
-     * Listar usuarios del negocio actual (con roles asignados)
-     */
     getUsers: (params = {}) => {
         const qs = new URLSearchParams(params).toString()
-        return djangoApi.get(`/business/users/?${qs}`)
+        return djangoApi.get(`/business/users/${qs ? '?' + qs : ''}`)
     },
-
-    /**
-     * Obtener detalle de un usuario del negocio
-     */
     getUser: (id) => djangoApi.get(`/business/users/${id}/`),
-
-    /**
-     * Crear usuario del negocio
-     * @param {Object} data - { email, password, first_name, last_name, employee_code?, department?, position?, hire_date?, initial_role_id? }
-     */
     createUser: (data) => djangoApi.post('/business/users/', data),
-
-    /**
-     * Actualizar usuario del negocio
-     */
     updateUser: (id, data) => djangoApi.patch(`/business/users/${id}/`, data),
-
-    /**
-     * Eliminar usuario del negocio (desactiva BusinessUser, no borra CustomUser)
-     */
     deleteUser: (id) => djangoApi.delete(`/business/users/${id}/`),
 
-    // ── Asignación de Roles ───────────────────────────────────────────────
-
-    /**
-     * Asignar rol a un usuario del negocio (con auditoría)
-     * @param {string} businessUserId - ID del BusinessUser
-     * @param {string} roleId - ID del BusinessRole
-     * @param {string} notes - Notas opcionales de auditoría
-     */
     assignRole: (businessUserId, roleId, notes = '') =>
         djangoApi.post(`/business/users/${businessUserId}/assign_role/`, {
             role_id: roleId,
             notes
         }),
-
-    /**
-     * Revocar rol de un usuario del negocio
-     * @param {string} businessUserId - ID del BusinessUser  
-     * @param {string} roleId - ID del BusinessRole a revocar
-     */
     revokeRole: (businessUserId, roleId) =>
         djangoApi.post(`/business/users/${businessUserId}/revoke_role/`, {
             role_id: roleId
         }),
 
-    // ── Histórico de Asignaciones ─────────────────────────────────────────
-
-    /**
-     * Listar histórico completo de asignaciones de roles
-     */
     listRoleAssignments: (params = {}) => {
         const qs = new URLSearchParams(params).toString()
-        return djangoApi.get(`/business/role-assignments/?${qs}`)
+        return djangoApi.get(`/business/role-assignments/${qs ? '?' + qs : ''}`)
     },
-
-    // ── Endpoints Especiales ──────────────────────────────────────────────
-
-    /**
-     * Obtener solo usuarios con roles activos asignados
-     */
     getUsersWithActiveRoles: () => djangoApi.get('/business/users/with-active-roles/'),
 
-    // ── Roles del Negocio ─────────────────────────────────────────────────
-
-    /**
-     * Listar roles disponibles para el negocio actual
-     */
     getRoles: (params = {}) => {
         const qs = new URLSearchParams(params).toString()
-        return djangoApi.get(`/business/roles/?${qs}`)
+        return djangoApi.get(`/business/roles/${qs ? '?' + qs : ''}`)
     },
-
     getRole: (id) => djangoApi.get(`/business/roles/${id}/`),
     createRole: (data) => djangoApi.post('/business/roles/', data),
     updateRole: (id, data) => djangoApi.patch(`/business/roles/${id}/`, data),
     deleteRole: (id) => djangoApi.delete(`/business/roles/${id}/`),
-
-    /**
-     * Obtener usuarios que tienen un rol específico
-     */
     getRoleUsers: (roleId) => djangoApi.get(`/business/roles/${roleId}/users/`),
 
-    // ── Permisos del Sistema (Solo Lectura) ───────────────────────────────
-
-    /**
-     * Listar todos los permisos disponibles en el sistema
-     */
     getPermissions: (params = {}) => {
         const qs = new URLSearchParams(params).toString()
-        return djangoApi.get(`/business/permissions/?${qs}`)
+        return djangoApi.get(`/business/permissions/${qs ? '?' + qs : ''}`)
     },
-
     getPermission: (id) => djangoApi.get(`/business/permissions/${id}/`),
 }
 
 // =============================================================================
-// 👥 MEMBERSHIP API (Gestión de accesos)
+// 👥 MEMBERSHIP API
 // =============================================================================
 export const membershipAPI = {
     assignAdmin: (data) => djangoApi.post('/business/memberships/assign/', data),
-
     getBusinessAdmins: (businessId) =>
         djangoApi.get(`/business/memberships/business/${businessId}/admins/`),
-
     revokeAccess: (membershipId) =>
         djangoApi.post(`/business/memberships/${membershipId}/revoke/`),
-
     list: (params = {}) => {
         const qs = new URLSearchParams(params).toString()
         return djangoApi.get(`/business/memberships/${qs ? '?' + qs : ''}`)
@@ -303,20 +269,16 @@ export const membershipAPI = {
 }
 
 // =============================================================================
-// 👤 USERS API (Usuarios globales - Super Admin)
+// 👤 USERS API
 // =============================================================================
 export const usersAPI = {
     list: (params = {}) => {
         const qs = new URLSearchParams(params).toString()
         return djangoApi.get(`/auth/users/${qs ? '?' + qs : ''}`)
     },
-
     create: (data) => djangoApi.post('/auth/users/', data),
-
     update: (id, data) => djangoApi.patch(`/auth/users/${id}/`, data),
-
     delete: (id) => djangoApi.delete(`/auth/users/${id}/`),
-
     getHistory: (id) => djangoApi.get(`/auth/users/${id}/history/`)
 }
 
@@ -356,121 +318,13 @@ export const analyticsAPI = {
 export const auditAPI = {
     list: (params = {}) => {
         const qs = new URLSearchParams(params).toString()
-        return djangoApi.get(`/audit-logs/?${qs}`)
+        return djangoApi.get(`/audit-logs/${qs ? '?' + qs : ''}`)
     },
     summary: () => djangoApi.get('/audit-logs/summary/'),
     getUserSessions: () => djangoApi.get('/audit-logs/user-sessions/'),
     getActivityTimeline: () => djangoApi.get('/audit-logs/activity-timeline/'),
 }
 
-// Interceptor de Response - Maneja refresh token y errores 401
-djangoApi.interceptors.response.use(
-    (response) => response,
-    async (error) => {
-        const originalRequest = error.config
-
-        // ✅ NO intentar refresh si es el endpoint de login
-        if (originalRequest.url.includes('/auth/login/') ||
-            originalRequest.url.includes('/auth/token/refresh/')) {
-            return Promise.reject(error)
-        }
-
-        // Si es 401 y no es un re-intento, intentar refresh
-        if (error.response?.status === 401 && !originalRequest._retry) {
-            originalRequest._retry = true
-
-            try {
-                const refresh = localStorage.getItem(REFRESH_KEY)
-
-                // ✅ VALIDAR QUE EXISTA REFRESH TOKEN
-                if (!refresh) {
-                    console.warn('⚠️ No hay refresh token, redirigiendo a login')
-                    // Limpiar sesión
-                    localStorage.removeItem(TOKEN_KEY)
-                    localStorage.removeItem(REFRESH_KEY)
-                    localStorage.removeItem(BUSINESS_KEY)
-                    localStorage.removeItem(USER_KEY)
-
-                    // Redirigir a login
-                    if (window.location.pathname !== '/login') {
-                        window.location.href = '/login'
-                    }
-                    return Promise.reject(new Error('No refresh token'))
-                }
-
-                // Intentar obtener nuevo access token
-                const response = await axios.post(`${API_URL}/auth/token/refresh/`, {
-                    refresh: refresh
-                }, {
-                    headers: { 'Content-Type': 'application/json' }
-                })
-
-                const { access } = response.data
-                localStorage.setItem(TOKEN_KEY, access)
-
-                // Reintentar la petición original con el nuevo token
-                originalRequest.headers.Authorization = `Bearer ${access}`
-                return djangoApi(originalRequest)
-
-            } catch (refreshError) {
-                console.error('❌ Error al refresh token:', refreshError)
-
-                // Refresh falló - limpiar sesión completa
-                localStorage.removeItem(TOKEN_KEY)
-                localStorage.removeItem(REFRESH_KEY)
-                localStorage.removeItem(BUSINESS_KEY)
-                localStorage.removeItem(USER_KEY)
-
-                // Redirigir a login
-                if (window.location.pathname !== '/login') {
-                    window.location.href = '/login'
-                }
-                return Promise.reject(refreshError)
-            }
-        }
-
-        return Promise.reject(error)
-    }
-)
-
-djangoApi.interceptors.request.use(
-    (config) => {
-        const token = localStorage.getItem(TOKEN_KEY)
-
-        if (token) {
-            config.headers.Authorization = `Bearer ${token}`
-        }
-
-        // ✅ Obtener business_id
-        let businessId = null
-
-        try {
-            const business = JSON.parse(localStorage.getItem(BUSINESS_KEY) || 'null')
-            if (business?.id) {
-                businessId = business.id
-            }
-        } catch (e) { }
-
-        if (!businessId) {
-            try {
-                const user = JSON.parse(localStorage.getItem(USER_KEY) || 'null')
-                const membership = user?.business_memberships?.[0]
-                if (membership) {
-                    businessId = membership.business || membership.id
-                }
-            } catch (e) { }
-        }
-
-        // ✅ Agregar header SOLO si tenemos business_id
-        if (businessId && !config.skipBusinessHeader) {
-            config.headers['X-Business-ID'] = businessId
-            console.log('🔗 [Interceptor] X-Business-ID agregado:', businessId)
-        }
-
-        return config
-    },
-    (error) => Promise.reject(error)
-)
 // =============================================================================
 // 🎯 EXPORT DEFAULT
 // =============================================================================

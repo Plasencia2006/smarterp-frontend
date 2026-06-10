@@ -1,5 +1,3 @@
-// src/components/ProtectedRoute.jsx
-
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 
@@ -12,7 +10,7 @@ const ProtectedRoute = ({ children, requiredPermission, requiredRole }) => {
     }
 
     // ✅ SI ES SUPER ADMIN → Acceso total
-    if (user.is_super_admin) {
+    if (user.is_super_admin || user.is_superuser) {
         return children
     }
 

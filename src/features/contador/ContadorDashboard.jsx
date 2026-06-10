@@ -12,7 +12,7 @@ const ContadorDashboard = () => {
         <div className="min-h-screen bg-gray-50/50 p-6 space-y-6 max-w-7xl mx-auto">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold">Panel Contable</h1>
+                    <h1 className="text-2xl font-bold">Panel Contable.</h1>
                     <p className="text-muted-foreground">Hola, {user?.first_name} • Contador</p>
                 </div>
                 <Button variant="outline"><Download className="w-4 h-4 mr-2" /> Exportar Todo</Button>
