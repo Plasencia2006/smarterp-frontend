@@ -9,7 +9,7 @@ import {
     Bell, Search, Settings, User, X, ChevronRight,
     Package, ShoppingCart, Users, BarChart3, Wrench,
     CreditCard, Shield, Activity, Users2, DollarSign,
-    FileText, ClipboardList, HeadphonesIcon
+    FileText, ClipboardList, HeadphonesIcon, AlertTriangle, Tag
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -131,21 +131,25 @@ export const BusinessLayout = () => {
                 },
             ],
 
-            // 📦 INVENTARIO - Solo inventario y stock
+            // 📦 INVENTARIO - Con rutas reales y categorías
             INVENTARIO: [
                 {
                     section: 'Principal', items: [
-                        { id: 'dashboard', label: 'Control Inventario', path: '/inventario/dashboard', icon: LayoutDashboard },
+                        { id: 'dashboard', label: 'Panel Inventario', path: '/inventario/dashboard', icon: LayoutDashboard },
                     ]
                 },
                 {
                     section: 'Gestión', items: [
-                        { id: 'inventory', label: 'Inventario', path: '/business/inventory', icon: Package },
+                        { id: 'products', label: 'Productos', path: '/inventario/products', icon: Package },
+                        { id: 'categories', label: 'Categorías', path: '/inventario/categories', icon: Tag },
+                        { id: 'stock', label: 'Control Stock', path: '/inventario/stock', icon: BarChart3 },
+                        { id: 'alerts', label: 'Alertas', path: '/inventario/alerts', icon: AlertTriangle },
                     ]
                 },
                 {
-                    section: 'Reportes', items: [
-                        { id: 'reports', label: 'Reportes Stock', path: '/business/reports', icon: BarChart3 },
+                    section: 'Compras', items: [
+                        { id: 'suppliers', label: 'Proveedores', path: '/inventario/suppliers', icon: Users2 },
+                        { id: 'purchases', label: 'Órdenes de Compra', path: '/inventario/purchases', icon: ShoppingCart },
                     ]
                 },
             ],
