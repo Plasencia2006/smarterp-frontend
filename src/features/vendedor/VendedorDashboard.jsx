@@ -1,72 +1,142 @@
-import { useNavigate } from 'react-router-dom'
-import { useAuth } from '@/contexts/AuthContext'
+import { useQuery } from '@tanstack/react-query'
+import { vendedorAPI } from '@/services/spring.api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { ShoppingCart, Users, Package, TrendingUp, Plus, Search } from 'lucide-react'
+import {
+    ShoppingCart, DollarSign, TrendingUp, Clock,
+    CheckCircle2, AlertCircle, BarChart3
+} from 'lucide-react'
 
-const VendedorDashboard = () => {
-    const { user } = useAuth()
-    const navigate = useNavigate()
+export default function VendedorDashboard() {
+    const { data: dashboard, isLoading } = useQuery({
+        queryKey: ['vendedor-dashboard'],
+        queryFn: async () => {
+            const res = await vendedorAPI.getDashboard()
+            return res.data?.success ? res.data.data : null
+        }
+    })
+
+    if (isLoading) {
+        return (
+            <div className="flex items-center justify-center h-64">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+            </div>
+        )
+    }
+
+    if (!dashboard) {
+        return (
+            <div className="text-center py-10">
+                <p className="text-muted-foreground">No hay datos disponibles</p>
+            </div>
+        )
+    }
 
     const stats = [
-        { label: 'Ventas Hoy', value: '$1,240', icon: ShoppingCart, change: '+12%' },
-        { label: 'Clientes Atendidos', value: '18', icon: Users, change: '+5' },
-        { label: 'Productos Vendidos', value: '34', icon: Package, change: '+8' },
-        { label: 'Meta Diaria', value: '85%', icon: TrendingUp, change: '$850/$1000' },
+        {
+            title: 'Cotizaciones Hoy',
+            value: dashboard.quotesToday || 0,
+            icon: ShoppingCart,
+            color: 'bg-blue-500',
+            description: 'Cotizaciones creadas hoy'
+        },
+        {
+            title: 'Ventas Hoy',
+            value: `S/ ${(dashboard.salesToday || 0).toFixed(2)}`,
+            icon: DollarSign,
+            color: 'bg-green-500',
+            description: 'Total vendido hoy'
+        },
+        {
+            title: 'Ventas 7 Días',
+            value: `S/ ${(dashboard.salesLast7Days || 0).toFixed(2)}`,
+            icon: TrendingUp,
+            color: 'bg-purple-500',
+            description: 'Total últimos 7 días'
+        },
+        {
+            title: 'Pendientes',
+            value: dashboard.pendingQuotes || 0,
+            icon: Clock,
+            color: 'bg-orange-500',
+            description: 'Cotizaciones sin cobrar'
+        },
+        {
+            title: 'Pagadas',
+            value: dashboard.paidQuotes || 0,
+            icon: CheckCircle2,
+            color: 'bg-emerald-500',
+            description: 'Ventas completadas'
+        },
+        {
+            title: 'Tasa Conversión',
+            value: `${(dashboard.conversionRate || 0).toFixed(1)}%`,
+            icon: BarChart3,
+            color: 'bg-indigo-500',
+            description: 'Cotizaciones que se convierten en ventas'
+        }
     ]
 
     return (
-        <div className="min-h-screen bg-gray-50/50 p-6 space-y-6 max-w-7xl mx-auto">
-            <div className="flex items-center justify-between">
+        <div className="min-h-screen bg-gray-50 p-6">
+            <div className="max-w-7xl mx-auto space-y-6">
+
+                {/* Header */}
                 <div>
-                    <h1 className="text-2xl font-bold">Panel de Ventas</h1>
-                    <p className="text-muted-foreground">Hola, {user?.first_name} • Vendedor</p>
+                    <h1 className="text-3xl font-bold">Dashboard del Vendedor</h1>
+                    <p className="text-muted-foreground">Resumen de tu actividad de ventas</p>
                 </div>
-                <Button onClick={() => navigate('/vendedor/nueva-venta')}>
-                    <Plus className="w-4 h-4 mr-2" /> Nueva Venta
-                </Button>
-            </div>
 
-            {/* Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {stats.map((s, i) => (
-                    <Card key={i} className="hover:shadow-md transition-shadow">
-                        <CardContent className="p-5">
-                            <div className="flex justify-between items-start mb-3">
-                                <s.icon className="w-6 h-6 text-primary" />
-                                <Badge variant="secondary">{s.change}</Badge>
+                {/* Stats Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {stats.map((stat, idx) => {
+                        const Icon = stat.icon
+                        return (
+                            <Card key={idx}>
+                                <CardContent className="p-6">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div className={`p-3 rounded-lg ${stat.color}`}>
+                                            <Icon className="w-6 h-6 text-white" />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <p className="text-sm text-muted-foreground mb-1">{stat.title}</p>
+                                        <p className="text-3xl font-bold">{stat.value}</p>
+                                        <p className="text-xs text-muted-foreground mt-2">{stat.description}</p>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )
+                    })}
+                </div>
+
+                {/* Resumen */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Resumen General</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div className="text-center p-4 bg-blue-50 rounded-lg">
+                                <p className="text-sm text-muted-foreground">Total Cotizaciones</p>
+                                <p className="text-2xl font-bold text-blue-600">{dashboard.totalQuotes}</p>
                             </div>
-                            <h3 className="text-2xl font-bold">{s.value}</h3>
-                            <p className="text-sm text-muted-foreground">{s.label}</p>
-                        </CardContent>
-                    </Card>
-                ))}
-            </div>
-
-            {/* Quick Actions */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card className="cursor-pointer hover:border-primary transition-colors" onClick={() => navigate('/vendedor/clientes')}>
-                    <CardContent className="p-5 flex items-center gap-4">
-                        <div className="p-3 bg-green-100 rounded-lg"><Users className="w-6 h-6 text-green-600" /></div>
-                        <div><h4 className="font-semibold">Gestionar Clientes</h4><p className="text-xs text-muted-foreground">Crear, buscar o asignar crédito</p></div>
-                    </CardContent>
-                </Card>
-                <Card className="cursor-pointer hover:border-primary transition-colors" onClick={() => navigate('/vendedor/catalogo')}>
-                    <CardContent className="p-5 flex items-center gap-4">
-                        <div className="p-3 bg-blue-100 rounded-lg"><Package className="w-6 h-6 text-blue-600" /></div>
-                        <div><h4 className="font-semibold">Catálogo de Productos</h4><p className="text-xs text-muted-foreground">Ver stock y precios actualizados</p></div>
-                    </CardContent>
-                </Card>
-                <Card className="cursor-pointer hover:border-primary transition-colors" onClick={() => navigate('/vendedor/historial')}>
-                    <CardContent className="p-5 flex items-center gap-4">
-                        <div className="p-3 bg-purple-100 rounded-lg"><TrendingUp className="w-6 h-6 text-purple-600" /></div>
-                        <div><h4 className="font-semibold">Historial de Ventas</h4><p className="text-xs text-muted-foreground">Revisar transacciones del día</p></div>
+                            <div className="text-center p-4 bg-green-50 rounded-lg">
+                                <p className="text-sm text-muted-foreground">Total Vendido</p>
+                                <p className="text-2xl font-bold text-green-600">S/ {dashboard.totalSales.toFixed(2)}</p>
+                            </div>
+                            <div className="text-center p-4 bg-orange-50 rounded-lg">
+                                <p className="text-sm text-muted-foreground">Pendientes</p>
+                                <p className="text-2xl font-bold text-orange-600">{dashboard.pendingQuotes}</p>
+                            </div>
+                            <div className="text-center p-4 bg-purple-50 rounded-lg">
+                                <p className="text-sm text-muted-foreground">Conversión</p>
+                                <p className="text-2xl font-bold text-purple-600">{dashboard.conversionRate.toFixed(1)}%</p>
+                            </div>
+                        </div>
                     </CardContent>
                 </Card>
             </div>
         </div>
     )
 }
-
-export default VendedorDashboard

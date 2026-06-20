@@ -1,4 +1,3 @@
-// src/services/spring.api.js
 import axios from 'axios'
 
 const SPRING_API_URL = import.meta.env.VITE_SPRING_API || 'http://localhost:8080/api'
@@ -51,6 +50,7 @@ springApi.interceptors.response.use(
     }
 )
 
+// ✅ INVENTARIO
 export const inventoryAPI = {
     products: {
         list: (params = {}) => springApi.get('/inventory/products', { params }),
@@ -83,8 +83,6 @@ export const inventoryAPI = {
         update: (id, data) => springApi.put(`/inventory/purchases/${id}`, data),
         receive: (id, data) => springApi.post(`/inventory/purchases/${id}/receive`, data),
     },
-
-    // Agregar dentro del objeto inventoryAPI
     categories: {
         list: (params = {}) => springApi.get('/inventory/categories', { params }),
         create: (data) => springApi.post('/inventory/categories', data),
@@ -92,8 +90,6 @@ export const inventoryAPI = {
         update: (id, data) => springApi.put(`/inventory/categories/${id}`, data),
         delete: (id) => springApi.delete(`/inventory/categories/${id}`),
     },
-
-    // Agregar al objeto inventoryAPI
     bulk: {
         importCategories: (file) => {
             const formData = new FormData()
@@ -143,8 +139,6 @@ export const inventoryAPI = {
             })
         },
     },
-    
-    // Dentro de inventoryAPI
     dashboard: {
         getStats: () => springApi.get('/inventory/dashboard/stats'),
         getMovementsChart: () => springApi.get('/inventory/dashboard/movements-chart'),
@@ -152,6 +146,47 @@ export const inventoryAPI = {
         getLowStockProducts: () => springApi.get('/inventory/dashboard/low-stock-products'),
         getRecentMovements: () => springApi.get('/inventory/dashboard/recent-movements'),
     },
+    quotes: {
+        create: (data) => springApi.post('/sales/quotes', data),
+        getPending: () => springApi.get('/sales/quotes/pending'),
+        getByNumber: (number) => springApi.get(`/sales/quotes/number/${number}`),
+        getAll: () => springApi.get('/sales/quotes'),
+        block: (id, minutes) => springApi.post(`/sales/quotes/${id}/block?minutes=${minutes}`),
+        release: (id) => springApi.post(`/sales/quotes/${id}/release`),
+    },
+    productBlocks: {
+        check: (productId) => springApi.get(`/sales/quotes/product/${productId}/availability`),
+    },
+}
+
+// ✅ COTIZACIONES
+export const quoteAPI = {
+    create: (data) => springApi.post('/sales/quotes', data),
+    getPending: () => springApi.get('/sales/quotes/pending'),
+    getAll: () => springApi.get('/sales/quotes'),
+    getByNumber: (number) => springApi.get(`/sales/quotes/number/${number}`),
+    block: (id, minutes = 20) => springApi.post(`/sales/quotes/${id}/block?minutes=${minutes}`),
+    release: (id) => springApi.post(`/sales/quotes/${id}/release`),
+    getProductAvailability: (productId) => springApi.get(`/sales/quotes/product/${productId}/availability`),
+    downloadPdf: (id) => springApi.get(`/sales/quotes/${id}/pdf`, {
+        responseType: 'blob'  // Importante para descargar archivos
+    }),
+}
+
+// ✅ CLIENTES
+export const customerAPI = {
+    create: (data) => springApi.post('/sales/customers', data),
+    update: (id, data) => springApi.put(`/sales/customers/${id}`, data),
+    delete: (id) => springApi.delete(`/sales/customers/${id}`),
+    getAll: () => springApi.get('/sales/customers'),
+    search: (search) => springApi.get(`/sales/customers/search?search=${search}`),
+    getFrequent: () => springApi.get('/sales/customers/frequent'),
+    getByDocument: (documentNumber) => springApi.get(`/sales/customers/document/${documentNumber}`),
+}
+
+// ✅ VENDEDOR DASHBOARD - NUEVO
+export const vendedorAPI = {
+    getDashboard: () => springApi.get('/sales/quotes/dashboard'),
 }
 
 export default springApi

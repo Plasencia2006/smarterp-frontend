@@ -39,7 +39,6 @@ import CajeroDashboard from '@/features/cajero/CajeroDashboard'
 import ContadorDashboard from '@/features/contador/ContadorDashboard'
 import InventarioDashboard from '@/features/inventario/InventarioDashboard'
 import SoporteDashboard from '@/features/soporte/SoporteDashboard'
-import VendedorDashboard from '@/features/vendedor/VendedorDashboard'
 
 
 // ✅ Módulo Inventario (Spring Boot)
@@ -48,8 +47,13 @@ import StockManager from '@/features/inventario/StockManager'
 import SuppliersManager from '@/features/inventario/SuppliersManager'
 import PurchasesManager from '@/features/inventario/PurchasesManager'
 import StockAlerts from '@/features/inventario/StockAlerts'
-import CategoriesManager from '@/features/inventario/CategoriesManager'  // ✅ NUEVO
+import CategoriesManager from '@/features/inventario/CategoriesManager'
 
+// ✅ Módulo Ventas POS (Vendedor)
+import POSManager from '@/features/vendedor/POSManager'
+import QuoteViewer from '@/features/vendedor/QuoteViewer'  // ✅ NUEVO
+import VendedorDashboard from '@/features/vendedor/VendedorDashboard'
+import CustomerManager from '@/features/vendedor/CustomerManager'
 
 const Placeholder = ({ title }) => (
     <div className="flex items-center justify-center h-64 bg-muted/20 rounded-lg border border-dashed">
@@ -174,18 +178,19 @@ function AppRoutes() {
                 <Route path="pos/*" element={<CajeroDashboard />} />
             </Route>
 
-            {/* ✅ VENDEDOR */}
+            {/* ✅ VENDEDOR - UNIFICADO con Cotizaciones */}
             <Route path="/vendedor/*" element={<ProtectedRoute><BusinessLayout /></ProtectedRoute>}>
-                <Route index element={<VendedorDashboard />} />
+                <Route index element={<POSManager />} />
                 <Route path="dashboard" element={<VendedorDashboard />} />
+                <Route path="pos" element={<POSManager />} />
+                <Route path="cotizaciones" element={<QuoteViewer />} />  {/* ✅ NUEVA RUTA */}
+                <Route path="clientes" element={<CustomerManager />} />
             </Route>
 
             {/* ✅ INVENTARIO - CON TODAS LAS RUTAS */}
             <Route path="/inventario/*" element={<ProtectedRoute><BusinessLayout /></ProtectedRoute>}>
                 <Route index element={<InventarioDashboard />} />
                 <Route path="dashboard" element={<InventarioDashboard />} />
-
-                {/* 🆕 RUTAS DE LOS MÓDULOS */}
                 <Route path="products" element={<ProductsManager />} />
                 <Route path="products/:id" element={<ProductsManager />} />
                 <Route path="stock" element={<StockManager />} />
@@ -194,7 +199,7 @@ function AppRoutes() {
                 <Route path="purchases" element={<PurchasesManager />} />
                 <Route path="purchases/:id" element={<PurchasesManager />} />
                 <Route path="alerts" element={<StockAlerts />} />
-                <Route path="categories" element={<CategoriesManager />} /> {/* ✅ NUEVA RUTA */}
+                <Route path="categories" element={<CategoriesManager />} />
             </Route>
 
             {/* ✅ CONTADOR */}

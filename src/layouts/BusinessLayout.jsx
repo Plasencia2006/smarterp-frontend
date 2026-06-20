@@ -1,7 +1,7 @@
 // src/layouts/BusinessLayout.jsx
 // ✅ RESPONSABLE: Estructura visual, navegación y filtrado por rol
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import {
@@ -9,12 +9,14 @@ import {
     Bell, Search, Settings, User, X, ChevronRight,
     Package, ShoppingCart, Users, BarChart3, Wrench,
     CreditCard, Shield, Activity, Users2, DollarSign,
-    FileText, ClipboardList, HeadphonesIcon, AlertTriangle, Tag
+    FileText, ClipboardList, HeadphonesIcon, AlertTriangle, Tag,
+    Receipt, Lock
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
+import DarkModeToggle from '@/components/DarkModeToggle'
 
 export const BusinessLayout = () => {
     const navigate = useNavigate()
@@ -35,7 +37,6 @@ export const BusinessLayout = () => {
     // ✅ CONFIGURACIÓN DE MENÚS POR ROL
     const menuConfig = useMemo(() => {
         const allMenus = {
-            // 🏢 ADMIN - Acceso completo
             ADMIN: [
                 {
                     section: 'Principal', items: [
@@ -69,8 +70,6 @@ export const BusinessLayout = () => {
                     ]
                 },
             ],
-
-            // 💵 CAJERO - Solo caja y ventas básicas
             CAJERO: [
                 {
                     section: 'Principal', items: [
@@ -89,28 +88,20 @@ export const BusinessLayout = () => {
                     ]
                 },
             ],
-
-            // 💰 VENDEDOR - Solo ventas y catálogo
             VENDEDOR: [
                 {
                     section: 'Principal', items: [
-                        { id: 'dashboard', label: 'Mis Ventas', path: '/vendedor/dashboard', icon: LayoutDashboard },
+                        { id: 'dashboard', label: 'Mi Panel', path: '/vendedor/dashboard', icon: LayoutDashboard },
                     ]
                 },
                 {
                     section: 'Operaciones', items: [
-                        { id: 'sales', label: 'Nueva Venta', path: '/business/sales', icon: ShoppingCart },
-                        { id: 'inventory', label: 'Catálogo', path: '/business/inventory', icon: Package },
-                    ]
-                },
-                {
-                    section: 'Reportes', items: [
-                        { id: 'reports', label: 'Mi Rendimiento', path: '/business/reports', icon: BarChart3 },
+                        { id: 'pos', label: 'Nueva Cotización', path: '/vendedor/pos', icon: ShoppingCart },
+                        { id: 'quotes', label: 'Mis Cotizaciones', path: '/vendedor/cotizaciones', icon: Receipt },
+                        { id: 'customers', label: 'Clientes', path: '/vendedor/clientes', icon: Users },
                     ]
                 },
             ],
-
-            // 📊 CONTADOR - Solo reportes financieros y auditoría
             CONTADOR: [
                 {
                     section: 'Principal', items: [
@@ -130,8 +121,6 @@ export const BusinessLayout = () => {
                     ]
                 },
             ],
-
-            // 📦 INVENTARIO - Con rutas reales y categorías
             INVENTARIO: [
                 {
                     section: 'Principal', items: [
@@ -153,8 +142,6 @@ export const BusinessLayout = () => {
                     ]
                 },
             ],
-
-            // 🔧 SOPORTE - Solo servicios y tickets
             SOPORTE: [
                 {
                     section: 'Principal', items: [
@@ -172,8 +159,6 @@ export const BusinessLayout = () => {
                     ]
                 },
             ],
-
-            // 👤 USER - Menú mínimo por defecto
             USER: [
                 {
                     section: 'Principal', items: [
@@ -183,147 +168,210 @@ export const BusinessLayout = () => {
             ],
         }
 
-        // Retornar el menú correspondiente al rol, o USER por defecto
         return allMenus[userRole] || allMenus.USER
     }, [userRole])
 
     if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50">
+            <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
             </div>
         )
     }
 
     return (
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
             {/* ==================== SIDEBAR ==================== */}
             <aside className={cn(
-                "fixed left-0 top-0 z-40 h-screen transition-all duration-300 bg-white border-r",
+                "fixed left-0 top-0 z-40 h-screen transition-all duration-300 border-r flex flex-col",
+                "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700",
                 sidebarOpen ? "w-64" : "w-20",
                 mobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
             )}>
-                <div className="flex h-full flex-col">
 
-                    {/* Header del Sidebar */}
-                    <div className="flex h-16 items-center justify-between px-4 border-b">
-                        <div className="flex items-center gap-3 overflow-hidden">
-                            <div className="p-2 bg-primary/10 rounded-lg shrink-0">
-                                <Building2 className="w-5 h-5 text-primary" />
-                            </div>
-                            {sidebarOpen && (
-                                <div className="min-w-0">
-                                    <p className="font-semibold text-sm truncate">{businessName}</p>
-                                    <Badge variant="outline" className="text-[10px]">
-                                        {userRole === 'ADMIN' ? 'Administrador' : userRole}
-                                    </Badge>
-                                </div>
-                            )}
+                {/* Header del Sidebar */}
+                <div className={cn("flex h-16 items-center justify-between px-4 border-b shrink-0",
+                    "border-gray-200 dark:border-gray-700"
+                )}>
+                    <div className="flex items-center gap-3 overflow-hidden">
+                        <div className={cn("p-2 rounded-lg shrink-0",
+                            "bg-primary/10 dark:bg-primary/20"
+                        )}>
+                            <Building2 className="w-5 h-5 text-primary" />
                         </div>
-                        <Button variant="ghost" size="icon" className="lg:hidden h-8 w-8" onClick={() => setMobileMenuOpen(false)}>
-                            <X className="w-4 h-4" />
-                        </Button>
+                        {sidebarOpen && (
+                            <div className="min-w-0">
+                                <p className={cn("font-semibold text-sm truncate",
+                                    "text-gray-900 dark:text-white"
+                                )}>{businessName}</p>
+                                <Badge variant="outline" className="text-[10px]">
+                                    {userRole === 'ADMIN' ? 'Administrador' : userRole}
+                                </Badge>
+                            </div>
+                        )}
+                    </div>
+                    <Button variant="ghost" size="icon" className="lg:hidden h-8 w-8" onClick={() => setMobileMenuOpen(false)}>
+                        <X className={cn("w-4 h-4",
+                            "text-gray-900 dark:text-gray-300"
+                        )} />
+                    </Button>
+                </div>
+
+                {/* Navegación (Scrollable) */}
+                <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-6">
+                    {menuConfig.map((section) => (
+                        <div key={section.section}>
+                            {sidebarOpen && (
+                                <h3 className={cn("px-3 py-2 text-xs font-semibold uppercase tracking-wider",
+                                    "text-gray-400"
+                                )}>
+                                    {section.section}
+                                </h3>
+                            )}
+                            <div className="space-y-1">
+                                {section.items.map((item) => {
+                                    const Icon = item.icon
+                                    const isActive = location.pathname.startsWith(item.path)
+                                    return (
+                                        <button
+                                            key={item.id}
+                                            onClick={() => navigate(item.path)}
+                                            className={cn(
+                                                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors w-full",
+                                                isActive
+                                                    ? "bg-primary/10 dark:bg-primary/20 text-primary"
+                                                    : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white",
+                                                !sidebarOpen && "justify-center px-2"
+                                            )}
+                                            title={!sidebarOpen ? item.label : undefined}
+                                        >
+                                            <Icon className={cn("w-5 h-5 shrink-0",
+                                                isActive ? "text-primary" : "text-gray-400"
+                                            )} />
+                                            {sidebarOpen && <span>{item.label}</span>}
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                    ))}
+                </nav>
+
+                {/* ✅ Footer del Sidebar (Fijo al fondo) */}
+                <div className={cn("p-3 border-t bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 shrink-0")}>
+                    {/* User Profile */}
+                    <div className={cn("flex items-center gap-3 p-2 rounded-lg", sidebarOpen ? "" : "justify-center")}>
+                        <div className={cn("w-9 h-9 rounded-full flex items-center justify-center shrink-0",
+                            "bg-primary/10 dark:bg-primary/20"
+                        )}>
+                            <span className="text-sm font-semibold text-primary">{userAvatar}</span>
+                        </div>
+                        {sidebarOpen && (
+                            <div className="flex-1 min-w-0">
+                                <p className={cn("text-sm font-medium truncate",
+                                    "text-gray-900 dark:text-white"
+                                )}>{userName}</p>
+                                <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+                            </div>
+                        )}
                     </div>
 
-                    {/* ✅ Navegación FILTRADA por rol */}
-                    <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-6">
-                        {menuConfig.map((section) => (
-                            <div key={section.section}>
-                                {sidebarOpen && (
-                                    <h3 className="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                                        {section.section}
-                                    </h3>
-                                )}
-                                <div className="space-y-1">
-                                    {section.items.map((item) => {
-                                        const Icon = item.icon
-                                        const isActive = location.pathname.startsWith(item.path)
-                                        return (
-                                            <button
-                                                key={item.id}
-                                                onClick={() => navigate(item.path)}
-                                                className={cn(
-                                                    "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors w-full",
-                                                    isActive
-                                                        ? "bg-primary/10 text-primary"
-                                                        : "text-gray-600 hover:bg-gray-100 hover:text-gray-900",
-                                                    !sidebarOpen && "justify-center px-2"
-                                                )}
-                                                title={!sidebarOpen ? item.label : undefined}
-                                            >
-                                                <Icon className={cn("w-5 h-5 shrink-0", isActive ? "text-primary" : "text-gray-400")} />
-                                                {sidebarOpen && <span>{item.label}</span>}
-                                            </button>
-                                        )
-                                    })}
-                                </div>
-                            </div>
-                        ))}
-                    </nav>
+                    {/* Acciones: Contraer y Salir (Separados verticalmente) */}
+                    <div className={cn("mt-4 space-y-2", sidebarOpen ? "" : "flex flex-col items-center gap-2")}>
 
-                    {/* Footer del Sidebar */}
-                    <div className="p-3 border-t bg-gray-50">
-                        <div className={cn("flex items-center gap-3 p-2 rounded-lg", sidebarOpen ? "" : "justify-center")}>
-                            <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                                <span className="text-sm font-semibold text-primary">{userAvatar}</span>
-                            </div>
-                            {sidebarOpen && (
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium truncate">{userName}</p>
-                                    <p className="text-xs text-gray-500 truncate">{user?.email}</p>
-                                </div>
+                        {/* Botón Contraer Sidebar */}
+                        <Button
+                            variant="ghost"
+                            size={sidebarOpen ? "sm" : "icon"}
+                            className={cn("w-full text-gray-500 dark:text-gray-400", sidebarOpen ? "justify-start" : "justify-center")}
+                            onClick={() => setSidebarOpen(!sidebarOpen)}
+                        >
+                            {sidebarOpen ? (
+                                <>
+                                    <ChevronRight className="w-4 h-4 mr-2 rotate-180" />
+                                    Contraer
+                                </>
+                            ) : (
+                                <ChevronRight className="w-4 h-4" />
                             )}
-                        </div>
-                        <div className={cn("flex gap-2 mt-3", sidebarOpen ? "" : "flex-col")}>
-                            <Button variant="ghost" size={sidebarOpen ? "sm" : "icon"} className="w-full justify-start" onClick={() => setSidebarOpen(!sidebarOpen)}>
-                                {sidebarOpen ? <ChevronRight className="w-4 h-4 mr-2 rotate-180" /> : <ChevronRight className="w-4 h-4" />}
-                                {sidebarOpen && "Contraer"}
-                            </Button>
-                            <Button variant="ghost" size={sidebarOpen ? "sm" : "icon"} className="w-full justify-start text-red-600" onClick={logout}>
-                                <LogOut className="w-4 h-4" />
-                                {sidebarOpen && "Salir"}
-                            </Button>
-                        </div>
+                        </Button>
+
+                        {/* Botón Salir (Al final) */}
+                        <Button
+                            variant="ghost"
+                            size={sidebarOpen ? "sm" : "icon"}
+                            className={cn("w-full text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20", sidebarOpen ? "justify-start" : "justify-center")}
+                            onClick={logout}
+                        >
+                            <LogOut className={cn("w-4 h-4", sidebarOpen && "mr-2")} />
+                            {sidebarOpen && "Salir"}
+                        </Button>
                     </div>
                 </div>
             </aside>
 
             {/* ==================== CONTENIDO PRINCIPAL ==================== */}
-            <div className={cn("transition-all duration-300 min-h-screen", sidebarOpen ? "lg:ml-64" : "lg:ml-20")}>
+            <div className={cn("transition-all duration-300 min-h-screen",
+                sidebarOpen ? "lg:ml-64" : "lg:ml-20"
+            )}>
 
                 {/* Header Superior */}
-                <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-white/80 backdrop-blur px-6">
+                <header className={cn("sticky top-0 z-30 flex h-16 items-center gap-4 border-b backdrop-blur px-6",
+                    "bg-white/80 dark:bg-gray-800/80 border-gray-200 dark:border-gray-700"
+                )}>
                     <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobileMenuOpen(true)}>
-                        <Menu className="w-5 h-5" />
+                        <Menu className={cn("w-5 h-5",
+                            "text-gray-600 dark:text-gray-300"
+                        )} />
                     </Button>
 
                     {/* Búsqueda */}
                     <div className="flex-1 max-w-md hidden sm:block">
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                            <Input placeholder="Buscar..." className="pl-9 bg-gray-50" />
+                            <Input
+                                placeholder="Buscar..."
+                                className={cn("pl-9",
+                                    "bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:placeholder:text-gray-400"
+                                )}
+                            />
                         </div>
                     </div>
 
                     {/* Acciones Derecha */}
                     <div className="flex items-center gap-2 ml-auto">
 
+                        {/* ✅ MODO OSCURO - Toggle */}
+                        <DarkModeToggle />
+
                         {/* Notificaciones */}
                         <div className="relative">
                             <Button variant="ghost" size="icon" className="relative" onClick={() => setNotificationsOpen(!notificationsOpen)}>
-                                <Bell className="w-5 h-5 text-gray-600" />
+                                <Bell className={cn("w-5 h-5",
+                                    "text-gray-600 dark:text-gray-300"
+                                )} />
                                 <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-[10px] bg-red-500">3</Badge>
                             </Button>
                             {notificationsOpen && (
-                                <div className="absolute right-0 mt-2 w-72 bg-white border rounded-lg shadow-lg z-50">
-                                    <div className="p-3 border-b font-medium text-sm">Notificaciones</div>
+                                <div className={cn("absolute right-0 mt-2 w-72 border rounded-lg shadow-lg z-50",
+                                    "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+                                )}>
+                                    <div className={cn("p-3 border-b font-medium text-sm",
+                                        "border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white"
+                                    )}>Notificaciones</div>
                                     <div className="max-h-64 overflow-y-auto">
-                                        <div className="p-3 hover:bg-gray-50 cursor-pointer border-b">
-                                            <p className="text-sm font-medium">📦 Stock bajo: Mouse</p>
+                                        <div className={cn("p-3 cursor-pointer border-b",
+                                            "hover:bg-gray-50 dark:hover:bg-gray-700 border-gray-100 dark:border-gray-700"
+                                        )}>
+                                            <p className={cn("text-sm font-medium",
+                                                "text-gray-900 dark:text-white"
+                                            )}>📦 Stock bajo: Mouse</p>
                                             <p className="text-xs text-gray-500">Hace 10 min</p>
                                         </div>
                                     </div>
-                                    <div className="p-2 border-t text-center">
+                                    <div className={cn("p-2 border-t text-center",
+                                        "border-gray-200 dark:border-gray-700"
+                                    )}>
                                         <button onClick={() => setNotificationsOpen(false)} className="text-xs text-primary hover:underline">Cerrar</button>
                                     </div>
                                 </div>
@@ -332,30 +380,51 @@ export const BusinessLayout = () => {
 
                         {/* Menú de Usuario */}
                         <div className="relative">
-                            <Button variant="ghost" className="flex items-center gap-2 px-3" onClick={() => setUserMenuOpen(!userMenuOpen)}>
-                                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                            <Button variant="ghost" className={cn("flex items-center gap-2 px-3",
+                                "hover:bg-gray-100 dark:hover:bg-gray-700"
+                            )} onClick={() => setUserMenuOpen(!userMenuOpen)}>
+                                <div className={cn("w-8 h-8 rounded-full flex items-center justify-center",
+                                    "bg-primary/10 dark:bg-primary/20"
+                                )}>
                                     <span className="text-sm font-semibold text-primary">{userAvatar}</span>
                                 </div>
                                 {sidebarOpen && (
                                     <>
                                         <div className="hidden md:block text-left">
-                                            <p className="text-sm font-medium">{userName}</p>
+                                            <p className={cn("text-sm font-medium",
+                                                "text-gray-900 dark:text-white"
+                                            )}>{userName}</p>
                                             <p className="text-xs text-gray-500">{businessName}</p>
                                         </div>
-                                        <ChevronDown className={cn("w-4 h-4 text-gray-400 transition-transform", userMenuOpen && "rotate-180")} />
+                                        <ChevronDown className={cn("w-4 h-4 text-gray-400 transition-transform",
+                                            userMenuOpen && "rotate-180"
+                                        )} />
                                     </>
                                 )}
                             </Button>
                             {userMenuOpen && (
-                                <div className="absolute right-0 mt-2 w-48 bg-white border rounded-lg shadow-lg z-50">
-                                    <button onClick={() => { navigate('/business/profile'); setUserMenuOpen(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-2">
+                                <div className={cn("absolute right-0 mt-2 w-48 border rounded-lg shadow-lg z-50",
+                                    "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+                                )}>
+                                    <button onClick={() => { navigate('/business/profile'); setUserMenuOpen(false); }}
+                                        className={cn("w-full text-left px-4 py-2 text-sm flex items-center gap-2",
+                                            "hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-900 dark:text-white"
+                                        )}>
                                         <User className="w-4 h-4" /> Perfil
                                     </button>
-                                    <button onClick={() => { navigate('/business/settings'); setUserMenuOpen(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-2">
+                                    <button onClick={() => { navigate('/business/settings'); setUserMenuOpen(false); }}
+                                        className={cn("w-full text-left px-4 py-2 text-sm flex items-center gap-2",
+                                            "hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-900 dark:text-white"
+                                        )}>
                                         <Settings className="w-4 h-4" /> Configuración
                                     </button>
-                                    <div className="border-t my-1"></div>
-                                    <button onClick={() => { logout(); setUserMenuOpen(false); }} className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2">
+                                    <div className={cn("border-t my-1",
+                                        "border-gray-200 dark:border-gray-700"
+                                    )}></div>
+                                    <button onClick={() => { logout(); setUserMenuOpen(false); }}
+                                        className={cn("w-full text-left px-4 py-2 text-sm flex items-center gap-2",
+                                            "hover:bg-red-50 dark:hover:bg-red-900/30 text-red-600"
+                                        )}>
                                         <LogOut className="w-4 h-4" /> Cerrar Sesión
                                     </button>
                                 </div>
@@ -365,7 +434,9 @@ export const BusinessLayout = () => {
                 </header>
 
                 {/* ÁREA DE CONTENIDO */}
-                <main className="p-4 lg:p-6">
+                <main className={cn("p-4 lg:p-6",
+                    "bg-gray-50 dark:bg-gray-900"
+                )}>
                     <Outlet />
                 </main>
             </div>
