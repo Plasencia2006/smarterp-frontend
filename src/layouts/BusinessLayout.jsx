@@ -1,6 +1,3 @@
-// src/layouts/BusinessLayout.jsx
-// ✅ RESPONSABLE: Estructura visual, navegación y filtrado por rol
-
 import { useState, useMemo, useEffect } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
@@ -10,7 +7,7 @@ import {
     Package, ShoppingCart, Users, BarChart3, Wrench,
     CreditCard, Shield, Activity, Users2, DollarSign,
     FileText, ClipboardList, HeadphonesIcon, AlertTriangle, Tag,
-    Receipt, Lock
+    Receipt, Lock, Unlock, Sun, Moon, Wallet
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -78,16 +75,26 @@ export const BusinessLayout = () => {
                 },
                 {
                     section: 'Operaciones', items: [
-                        { id: 'cashier', label: 'Caja', path: '/business/cashier', icon: CreditCard },
-                        { id: 'sales', label: 'Ventas', path: '/business/sales', icon: ShoppingCart },
+                        { id: 'procesar-pago', label: 'Procesar Pago', path: '/cajero/procesar-pago', icon: DollarSign },
+                        { id: 'facturas', label: 'Facturas', path: '/cajero/facturas', icon: FileText },
+                        { id: 'venta-directa', label: 'Venta Directa', path: '/cajero/venta-directa', icon: ShoppingCart },
                     ]
                 },
                 {
-                    section: 'Reportes', items: [
-                        { id: 'reports', label: 'Mis Ventas', path: '/business/reports', icon: BarChart3 },
+                    section: 'Control de Efectivo', items: [
+                        { id: 'arqueos', label: 'Arqueos', path: '/cajero/arqueos', icon: Shield },
+                        { id: 'retiros', label: 'Retiros', path: '/cajero/retiros', icon: Wallet },
+                        { id: 'flujo', label: 'Flujo de Efectivo', path: '/cajero/flujo-efectivo', icon: BarChart3 },
+                    ]
+                },
+                {
+                    section: 'Gestión', items: [
+                        { id: 'apertura', label: 'Abrir Caja', path: '/cajero/apertura', icon: Unlock },
+                        { id: 'cierre', label: 'Cerrar Caja', path: '/cajero/cierre', icon: Lock },
                     ]
                 },
             ],
+
             VENDEDOR: [
                 {
                     section: 'Principal', items: [
@@ -257,7 +264,7 @@ export const BusinessLayout = () => {
                     ))}
                 </nav>
 
-                {/* ✅ Footer del Sidebar (Fijo al fondo) */}
+                {/* Footer del Sidebar */}
                 <div className={cn("p-3 border-t bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 shrink-0")}>
                     {/* User Profile */}
                     <div className={cn("flex items-center gap-3 p-2 rounded-lg", sidebarOpen ? "" : "justify-center")}>
@@ -276,7 +283,7 @@ export const BusinessLayout = () => {
                         )}
                     </div>
 
-                    {/* Acciones: Contraer y Salir (Separados verticalmente) */}
+                    {/* Acciones: Contraer y Salir */}
                     <div className={cn("mt-4 space-y-2", sidebarOpen ? "" : "flex flex-col items-center gap-2")}>
 
                         {/* Botón Contraer Sidebar */}
@@ -296,7 +303,7 @@ export const BusinessLayout = () => {
                             )}
                         </Button>
 
-                        {/* Botón Salir (Al final) */}
+                        {/* Botón Salir */}
                         <Button
                             variant="ghost"
                             size={sidebarOpen ? "sm" : "icon"}

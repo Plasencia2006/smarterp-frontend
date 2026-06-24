@@ -35,13 +35,27 @@ import SettingsPage from '@/features/business/SettingsPage'
 import AuditPage from '@/features/business/AuditPage'
 
 // Paneles por Rol Operativo
-import CajeroDashboard from '@/features/cajero/CajeroDashboard'
 import ContadorDashboard from '@/features/contador/ContadorDashboard'
-import InventarioDashboard from '@/features/inventario/InventarioDashboard'
 import SoporteDashboard from '@/features/soporte/SoporteDashboard'
 
 
-// ✅ Módulo Inventario (Spring Boot)
+// Agregar imports  (Cajero)
+import CajeroDashboard from '@/features/cajero/CajeroDashboard'
+import AperturaCaja from '@/features/cajero/AperturaCaja'
+import CierreCaja from '@/features/cajero/CierreCaja'
+import ProcesarPago from '@/features/cajero/ProcesarPago'
+import GestionFacturas from '@/features/cajero/GestionFacturas'
+import DetalleFactura from '@/features/cajero/DetalleFactura'
+// nuevos cajero causa
+import ArqueosCaja from '@/features/cajero/ArqueosCaja'
+import RetirosEfectivo from '@/features/cajero/RetirosEfectivo'
+import FlujoEfectivo from '@/features/cajero/FlujoEfectivo'
+import VentaDirecta from '@/features/cajero/VentaDirecta'
+
+
+
+//  Módulo Inventario (Spring Boot)
+import InventarioDashboard from '@/features/inventario/InventarioDashboard'
 import ProductsManager from '@/features/inventario/ProductsManager'
 import StockManager from '@/features/inventario/StockManager'
 import SuppliersManager from '@/features/inventario/SuppliersManager'
@@ -49,11 +63,14 @@ import PurchasesManager from '@/features/inventario/PurchasesManager'
 import StockAlerts from '@/features/inventario/StockAlerts'
 import CategoriesManager from '@/features/inventario/CategoriesManager'
 
-// ✅ Módulo Ventas POS (Vendedor)
+//  Módulo Ventas POS (Vendedor)
 import POSManager from '@/features/vendedor/POSManager'
-import QuoteViewer from '@/features/vendedor/QuoteViewer'  // ✅ NUEVO
+import QuoteViewer from '@/features/vendedor/QuoteViewer'  //  NUEVO
 import VendedorDashboard from '@/features/vendedor/VendedorDashboard'
 import CustomerManager from '@/features/vendedor/CustomerManager'
+
+
+
 
 const Placeholder = ({ title }) => (
     <div className="flex items-center justify-center h-64 bg-muted/20 rounded-lg border border-dashed">
@@ -175,7 +192,16 @@ function AppRoutes() {
             <Route path="/cajero/*" element={<ProtectedRoute><BusinessLayout /></ProtectedRoute>}>
                 <Route index element={<CajeroDashboard />} />
                 <Route path="dashboard" element={<CajeroDashboard />} />
-                <Route path="pos/*" element={<CajeroDashboard />} />
+                <Route path="apertura" element={<AperturaCaja />} />
+                <Route path="cierre" element={<CierreCaja />} />
+                <Route path="procesar-pago" element={<ProcesarPago />} />
+                <Route path="facturas" element={<GestionFacturas />} />
+                <Route path="facturas/:invoiceNumber" element={<DetalleFactura />} />
+                {/* ✅ NUEVAS RUTAS */}
+                <Route path="arqueos" element={<ArqueosCaja />} />
+                <Route path="retiros" element={<RetirosEfectivo />} />
+                <Route path="flujo-efectivo" element={<FlujoEfectivo />} />
+                <Route path="venta-directa" element={<VentaDirecta />} />
             </Route>
 
             {/* ✅ VENDEDOR - UNIFICADO con Cotizaciones */}

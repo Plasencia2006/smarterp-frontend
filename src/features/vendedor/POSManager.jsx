@@ -300,7 +300,7 @@ export default function POSManager() {
                                 className="flex items-center gap-2"
                             >
                                 <Receipt className="w-4 h-4" />
-                                Nueva
+                                Nueva 
                             </Button>
                             <Button
                                 variant={activeTab === 'search' ? 'default' : 'outline'}
