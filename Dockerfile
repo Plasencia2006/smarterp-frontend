@@ -1,31 +1,31 @@
-# Etapa 1: Build
+# ============================================
+# ETAPA 1: BUILD
+# ============================================
 FROM node:20-alpine AS build
 
 WORKDIR /app
 
-# Copiar package.json y package-lock.json
 COPY package*.json ./
-
-# Instalar dependencias
 RUN npm ci
 
-# Copiar código fuente
 COPY . .
-
-# Build para producción
 RUN npm run build
 
-# Etapa 2: Servir con Nginx
-FROM nginx:alpine
+# ============================================
+# ETAPA 2: PRODUCTION (SERVE)
+# ============================================
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Instalar serve globalmente
+RUN npm install -g serve
 
 # Copiar build desde la etapa anterior
-COPY --from=build /app/dist /usr/share/nginx/html
+COPY --from=build /app/dist ./dist
 
-# Copiar configuración de nginx
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-
-# Exponer puerto
+# Exponer puerto (Railway asigna $PORT)
 EXPOSE 3000
 
-# Comando de inicio
-CMD ["nginx", "-g", "daemon off;"]
+# Iniciar serve en el puerto que Railway asigne
+CMD ["sh", "-c", "serve -s dist -l ${PORT:-3000}"]
