@@ -58,6 +58,22 @@ export const inventoryAPI = {
         get: (id) => springApi.get(`/inventory/products/${id}`),
         update: (id, data) => springApi.put(`/inventory/products/${id}`, data),
         delete: (id) => springApi.delete(`/inventory/products/${id}`),
+
+        // ✅ NUEVO: Subir imagen de producto
+        uploadImage: (productId, file) => {
+            const formData = new FormData()
+            formData.append('image', file)
+            return springApi.post(`/inventory/products/${productId}/upload-image`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            })
+        },
+
+        // ✅ NUEVO: Eliminar imagen de producto
+        deleteImage: (productId, filename) => {
+            return springApi.delete(`/inventory/products/${productId}/delete-image`, {
+                params: { filename }
+            })
+        },
     },
     stock: {
         list: (params = {}) => springApi.get('/inventory/stock', { params }),
@@ -157,6 +173,31 @@ export const inventoryAPI = {
     productBlocks: {
         check: (productId) => springApi.get(`/sales/quotes/product/${productId}/availability`),
     },
+
+    // Admin Dashboard
+    getAdminDashboard: () => springApi.get('/admin/inventory/dashboard'),
+
+    // Admin Products
+    getAdminProducts: (page, size) => {
+        const params = new URLSearchParams({
+            page: page.toString(),
+            size: size.toString()
+        })
+        return springApi.get(`/admin/inventory/products?${params}`)
+    },
+
+    // Admin Stats by Category
+    getAdminStatsByCategory: () => springApi.get('/admin/inventory/stats-by-category'),
+}
+
+// ✅ Helper para obtener URL de imagen
+
+export const getImageUrl = (filename) => {
+    if (!filename) return null
+
+    // ✅ Usar variable de entorno para la URL base
+    const baseUrl = import.meta.env.VITE_SPRING_API || 'http://localhost:8080/api'
+    return `${baseUrl}/uploads/products/${filename}`
 }
 
 // ✅ COTIZACIONES
@@ -169,8 +210,43 @@ export const quoteAPI = {
     release: (id) => springApi.post(`/sales/quotes/${id}/release`),
     getProductAvailability: (productId) => springApi.get(`/sales/quotes/product/${productId}/availability`),
     downloadPdf: (id) => springApi.get(`/sales/quotes/${id}/pdf`, {
-        responseType: 'blob'  // Importante para descargar archivos
+        responseType: 'blob'
     }),
+
+    getDashboard: () => springApi.get('/sales/quotes/dashboard'),
+
+    getAdminDashboard: (startDate, endDate) => {
+        const params = new URLSearchParams()
+        if (startDate) params.append('startDate', startDate)
+        if (endDate) params.append('endDate', endDate)
+        return springApi.get(`/admin/sales/dashboard?${params}`)
+    },
+
+    getAllQuotes: (page, size, status, sellerId, startDate, endDate) => {
+        const params = new URLSearchParams({
+            page: page.toString(),
+            size: size.toString()
+        })
+        if (status) params.append('status', status)
+        if (sellerId) params.append('sellerId', sellerId)
+        if (startDate) params.append('startDate', startDate)
+        if (endDate) params.append('endDate', endDate)
+        return springApi.get(`/admin/sales/quotes?${params}`)
+    },
+
+    getSalesBySeller: (startDate, endDate) => {
+        const params = new URLSearchParams()
+        if (startDate) params.append('startDate', startDate)
+        if (endDate) params.append('endDate', endDate)
+        return springApi.get(`/admin/sales/stats-by-seller?${params}`)
+    },
+
+    getSalesByPeriod: (period, startDate, endDate) => {
+        const params = new URLSearchParams({ period })
+        if (startDate) params.append('startDate', startDate)
+        if (endDate) params.append('endDate', endDate)
+        return springApi.get(`/admin/sales/sales-by-period?${params}`)
+    },
 }
 
 // ✅ CLIENTES
@@ -184,9 +260,121 @@ export const customerAPI = {
     getByDocument: (documentNumber) => springApi.get(`/sales/customers/document/${documentNumber}`),
 }
 
-// ✅ VENDEDOR DASHBOARD - NUEVO
+// ✅ VENDEDOR DASHBOARD
 export const vendedorAPI = {
     getDashboard: () => springApi.get('/sales/quotes/dashboard'),
+}
+
+// ✅ CAJA (CASH) - ADMIN
+export const cashAPI = {
+    getAdminDashboard: () => springApi.get('/admin/cash/dashboard'),
+    getAdminRegisters: (page = 0, size = 20) => {
+        const params = new URLSearchParams({
+            page: page.toString(),
+            size: size.toString()
+        })
+        return springApi.get(`/admin/cash/registers?${params}`)
+    },
+    getAdminRegisterTransactions: (registerId) =>
+        springApi.get(`/admin/cash/registers/${registerId}/transactions`),
+    getAdminPendingAudits: () => springApi.get('/admin/cash/audits/pending'),
+    approveAudit: (id, notes) => {
+        const params = new URLSearchParams()
+        if (notes) params.append('notes', notes)
+        return springApi.post(`/admin/cash/audits/${id}/approve?${params}`)
+    },
+    rejectAudit: (id, notes) => {
+        const params = new URLSearchParams()
+        if (notes) params.append('notes', notes)
+        return springApi.post(`/admin/cash/audits/${id}/reject?${params}`)
+    },
+    getAdminPendingWithdrawals: () => springApi.get('/admin/cash/withdrawals/pending'),
+    approveWithdrawal: (id, notes) => {
+        const params = new URLSearchParams()
+        if (notes) params.append('notes', notes)
+        return springApi.post(`/admin/cash/withdrawals/${id}/approve?${params}`)
+    },
+    rejectWithdrawal: (id, notes) => {
+        const params = new URLSearchParams()
+        if (notes) params.append('notes', notes)
+        return springApi.post(`/admin/cash/withdrawals/${id}/reject?${params}`)
+    },
+}
+
+// ✅ REPORTES - API para Admin
+export const reportAPI = {
+    getReportTypes: () => springApi.get('/admin/reports/types'),
+    getReportPreview: (type, startDate, endDate) => {
+        const params = new URLSearchParams()
+        params.append('type', type)
+        if (startDate) params.append('startDate', startDate)
+        if (endDate) params.append('endDate', endDate)
+        return springApi.get(`/admin/reports/preview?${params}`)
+    },
+    downloadReport: (type, format, startDate, endDate) => {
+        const params = new URLSearchParams()
+        params.append('type', type)
+        params.append('format', format)
+        if (startDate) params.append('startDate', startDate)
+        if (endDate) params.append('endDate', endDate)
+        return springApi.get(`/admin/reports/generate?${params}`, {
+            responseType: 'blob'
+        })
+    },
+    downloadFile: async (type, format, startDate, endDate, fileName) => {
+        try {
+            const response = await springApi.get(`/admin/reports/generate?type=${type}&format=${format}${startDate ? '&startDate=' + startDate : ''}${endDate ? '&endDate=' + endDate : ''}`, {
+                responseType: 'blob'
+            })
+            const url = window.URL.createObjectURL(new Blob([response.data]))
+            const link = document.createElement('a')
+            link.href = url
+            const extension = format === 'EXCEL' ? 'xlsx' : 'csv'
+            const timestamp = new Date().toISOString().split('T')[0]
+            link.setAttribute('download', fileName || `${type.toLowerCase()}_reporte_${timestamp}.${extension}`)
+            document.body.appendChild(link)
+            link.click()
+            link.remove()
+            window.URL.revokeObjectURL(url)
+            return true
+        } catch (error) {
+            console.error('❌ Error descargando reporte:', error)
+            throw error
+        }
+    }
+}
+
+// ✅ AUDITORÍA - API para Admin
+export const auditAPI = {
+    getAuditLogs: (params = {}) => {
+        const queryParams = new URLSearchParams()
+        if (params.page) queryParams.append('page', params.page)
+        if (params.size) queryParams.append('size', params.size)
+        if (params.action) queryParams.append('action', params.action)
+        if (params.entityType) queryParams.append('entityType', params.entityType)
+        if (params.userId) queryParams.append('userId', params.userId)
+        if (params.startDate) queryParams.append('startDate', params.startDate)
+        if (params.endDate) queryParams.append('endDate', params.endDate)
+        return springApi.get(`/admin/audit/logs?${queryParams}`)
+    },
+    getRecentActivities: (limit = 10) =>
+        springApi.get(`/admin/audit/recent?limit=${limit}`),
+    getActionStats: (startDate, endDate) => {
+        const params = new URLSearchParams()
+        if (startDate) params.append('startDate', startDate)
+        if (endDate) params.append('endDate', endDate)
+        return springApi.get(`/admin/audit/stats?${params}`)
+    },
+    getByEntity: (entityType, entityId, page = 0, size = 20) =>
+        springApi.get(`/admin/audit/entity/${entityType}/${entityId}?page=${page}&size=${size}`),
+    getByUser: (userId, page = 0, size = 20) =>
+        springApi.get(`/admin/audit/user/${userId}?page=${page}&size=${size}`),
+}
+
+// ✅ DASHBOARD - API para Admin
+export const dashboardAPI = {
+    getStats: () => springApi.get('/admin/dashboard/stats'),
+    getRecentActivity: () => springApi.get('/admin/dashboard/recent-activity'),
 }
 
 export default springApi
