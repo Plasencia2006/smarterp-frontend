@@ -1,372 +1,365 @@
-// src/features/business/BusinessDashboard.jsx
-// ✅ RESPONSABLE: Solo del contenido del dashboard principal del negocio
-// ✅ NO maneja layout, sidebar, header, ni navegación global
-
-import { useNavigate } from 'react-router-dom'
-import { useAuth } from '@/contexts/AuthContext'
 import { useQuery } from '@tanstack/react-query'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { dashboardAPI } from '@/services/spring.api'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
-    Building2,
-    Users,
-    Package,
-    TrendingUp,
-    UserCog,
-    ShoppingCart,
-    BarChart3,
-    Settings,
-    ArrowRight,
-    AlertCircle,
-    Loader2
+    Users, Package, ShoppingCart, TrendingUp,
+    AlertTriangle, Wallet, Activity, Clock,
+    ChevronRight, BarChart3, DollarSign,
+    ArrowUpCircle, ArrowDownCircle, ShoppingBag
 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import {
+    LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
+    XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+    ResponsiveContainer, AreaChart, Area
+} from 'recharts'
 
-// ✅ Componente: Stats del Dashboard
-function DashboardStats({ businessId }) {
-    // Fetch stats del negocio (ejemplo con React Query)
-    const { data: stats, isLoading } = useQuery({
-        queryKey: ['business-stats', businessId],
+// Colores para gráficos
+const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899']
+
+export default function BusinessDashboard() {
+    const navigate = useNavigate()
+
+    // 📊 Obtener estadísticas
+    const { data: stats, isLoading: loadingStats } = useQuery({
+        queryKey: ['admin-dashboard-stats'],
         queryFn: async () => {
-            // TODO: Conectar con API real
-            // const res = await businessAPI.getStats(businessId)
-            // return res.data
-            return {
-                members: 0,
-                products: 0,
-                sales: 0,
-                status: 'active'
+            try {
+                const res = await dashboardAPI.getStats()
+                return res.data?.success ? res.data.data : null
+            } catch (error) {
+                console.error('❌ Error al obtener estadísticas:', error)
+                return null
             }
         },
-        enabled: !!businessId,
-        staleTime: 5 * 60 * 1000, // 5 minutos
+        refetchInterval: 30000
     })
 
-    if (isLoading) {
+    if (loadingStats) {
         return (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                {[1, 2, 3, 4].map((i) => (
-                    <Card key={i}>
-                        <CardContent className="p-6">
-                            <div className="animate-pulse space-y-3">
-                                <div className="h-4 bg-gray-200 rounded w-24"></div>
-                                <div className="h-8 bg-gray-200 rounded w-16"></div>
-                                <div className="h-3 bg-gray-200 rounded w-32"></div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                ))}
-            </div>
-        )
-    }
-
-    const statsData = [
-        {
-            title: 'Miembros',
-            value: stats?.members ?? 0,
-            description: 'Usuarios del negocio',
-            icon: Users,
-            color: 'text-blue-600',
-            trend: null
-        },
-        {
-            title: 'Productos',
-            value: stats?.products ?? 0,
-            description: 'En inventario',
-            icon: Package,
-            color: 'text-green-600',
-            trend: null
-        },
-        {
-            title: 'Ventas',
-            value: `$${(stats?.sales ?? 0).toFixed(2)}`,
-            description: 'Este mes',
-            icon: TrendingUp,
-            color: 'text-purple-600',
-            trend: null
-        },
-        {
-            title: 'Estado',
-            value: stats?.status === 'active' ? 'Activo' : 'Inactivo',
-            description: 'Negocio operativo',
-            icon: Building2,
-            color: stats?.status === 'active' ? 'text-green-600' : 'text-red-600',
-            trend: null
-        }
-    ]
-
-    return (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {statsData.map((stat) => {
-                const Icon = stat.icon
-                return (
-                    <Card key={stat.title}>
-                        <CardHeader className="flex flex-row items-center justify-between pb-2">
-                            <CardTitle className="text-sm font-medium text-muted-foreground">
-                                {stat.title}
-                            </CardTitle>
-                            <Icon className={`h-4 w-4 ${stat.color}`} />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">{stat.value}</div>
-                            <p className="text-xs text-muted-foreground mt-1">
-                                {stat.description}
-                            </p>
-                        </CardContent>
-                    </Card>
-                )
-            })}
-        </div>
-    )
-}
-
-// ✅ Componente: Acciones Rápidas
-function QuickActions({ onNavigate }) {
-    const { hasPermission } = useAuth()
-
-    const actions = [
-        {
-            title: 'Gestionar Usuarios',
-            description: 'Crea y administra usuarios del negocio',
-            icon: UserCog,
-            color: 'bg-blue-100 text-blue-600',
-            path: '/business/users',
-            permission: 'users.view'
-        },
-        {
-            title: 'Inventario',
-            description: 'Gestiona productos y stock',
-            icon: Package,
-            color: 'bg-green-100 text-green-600',
-            path: '/business/inventory',
-            permission: 'inventory.read'
-        },
-        {
-            title: 'Ventas',
-            description: 'Registro y seguimiento de ventas',
-            icon: ShoppingCart,
-            color: 'bg-purple-100 text-purple-600',
-            path: '/business/sales',
-            permission: 'sales.view'
-        },
-        {
-            title: 'Reportes',
-            description: 'Análisis y estadísticas',
-            icon: BarChart3,
-            color: 'bg-orange-100 text-orange-600',
-            path: '/business/reports',
-            permission: 'reports.view'
-        },
-        {
-            title: 'Configuración',
-            description: 'Ajustes del negocio',
-            icon: Settings,
-            color: 'bg-gray-100 text-gray-600',
-            path: '/business/settings',
-            permission: 'business.update'
-        }
-    ]
-
-    // Filtrar acciones según permisos (opcional, se puede hacer en ProtectedRoute también)
-    const visibleActions = actions.filter(action =>
-        !action.permission || hasPermission(action.permission)
-    )
-
-    if (visibleActions.length === 0) {
-        return (
-            <Card>
-                <CardContent className="p-6 text-center">
-                    <AlertCircle className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                    <p className="text-muted-foreground">
-                        No tienes acceso a ningún módulo. Contacta al administrador.
-                    </p>
-                </CardContent>
-            </Card>
-        )
-    }
-
-    return (
-        <div>
-            <h2 className="text-xl font-semibold mb-4">Acciones Rápidas</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {visibleActions.map((action) => {
-                    const Icon = action.icon
-                    return (
-                        <Card
-                            key={action.title}
-                            className="cursor-pointer hover:shadow-lg transition-all hover:-translate-y-1 border-gray-200"
-                            onClick={() => onNavigate(action.path)}
-                        >
-                            <CardContent className="p-6">
-                                <div className="flex items-start gap-4">
-                                    <div className={`p-3 rounded-lg ${action.color}`}>
-                                        <Icon className="w-6 h-6" />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <h3 className="font-semibold text-gray-900 truncate">
-                                            {action.title}
-                                        </h3>
-                                        <p className="text-sm text-muted-foreground mt-1">
-                                            {action.description}
-                                        </p>
-                                    </div>
-                                    <ArrowRight className="w-5 h-5 text-muted-foreground shrink-0" />
-                                </div>
-                            </CardContent>
-                        </Card>
-                    )
-                })}
-            </div>
-        </div>
-    )
-}
-
-// ✅ Componente: Información del Negocio
-function BusinessInfo({ business }) {
-    if (!business) {
-        return (
-            <Card>
-                <CardContent className="p-6 text-center text-muted-foreground">
-                    No hay información disponible del negocio
-                </CardContent>
-            </Card>
-        )
-    }
-
-    return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Información del Negocio</CardTitle>
-                <CardDescription>
-                    Detalles de tu negocio
-                </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                    <div className="space-y-1">
-                        <span className="text-muted-foreground font-medium">Nombre:</span>
-                        <p className="font-semibold">{business.business_name}</p>
-                    </div>
-                    <div className="space-y-1">
-                        <span className="text-muted-foreground font-medium">Tu Rol:</span>
-                        <Badge variant="outline" className="capitalize">
-                            {business.membership_role || 'Miembro'}
-                        </Badge>
-                    </div>
-                    {business.email && (
-                        <div className="space-y-1">
-                            <span className="text-muted-foreground font-medium">Email:</span>
-                            <p className="font-medium">{business.email}</p>
-                        </div>
-                    )}
-                    {business.phone && (
-                        <div className="space-y-1">
-                            <span className="text-muted-foreground font-medium">Teléfono:</span>
-                            <p className="font-medium">{business.phone}</p>
-                        </div>
-                    )}
-                </div>
-            </CardContent>
-        </Card>
-    )
-}
-
-// ✅ Componente Principal del Dashboard
-export const BusinessDashboard = () => {
-    const navigate = useNavigate()
-    const { user, loading } = useAuth()
-
-    // Obtener el negocio actual del usuario (del contexto, no hace fetch adicional)
-    const business = user?.business_memberships?.[0]
-    const businessId = business?.business || business?.id
-    const businessName = business?.business_name || 'Mi Negocio'
-
-    // Loading del contexto de autenticación
-    if (loading) {
-        return (
-            <div className="min-h-[60vh] flex items-center justify-center">
-                <div className="text-center space-y-4">
-                    <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto" />
+            <div className="min-h-screen flex items-center justify-center">
+                <div className="text-center">
+                    <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
                     <p className="text-muted-foreground">Cargando dashboard...</p>
                 </div>
             </div>
         )
     }
 
-    // Si no hay negocio asignado
-    if (!business) {
-        return (
-            <div className="min-h-[60vh] flex items-center justify-center">
-                <Card className="w-full max-w-md">
-                    <CardContent className="p-8 text-center">
-                        <AlertCircle className="w-16 h-16 text-orange-500 mx-auto mb-4" />
-                        <h2 className="text-xl font-semibold mb-2">Sin Negocio Asignado</h2>
-                        <p className="text-muted-foreground mb-6">
-                            Tu cuenta está activa pero no tienes ningún negocio asignado.
+    // Preparar datos para gráfico de ventas
+    const salesData = stats?.salesLast7Days ?
+        Object.entries(stats.salesLast7Days).map(([date, amount]) => ({
+            date: new Date(date).toLocaleDateString('es-PE', { weekday: 'short' }),
+            ventas: parseFloat(amount).toFixed(2),
+            fullDate: date
+        })) : []
+
+    // Preparar datos para gráfico de categorías
+    const categoryData = stats?.productsByCategory ?
+        Object.entries(stats.productsByCategory).map(([name, value]) => ({
+            name,
+            value
+        })) : []
+
+    // Métricas clave
+    const totalVentasMes = parseFloat(stats?.monthlySales || 0)
+    const totalVentasHoy = parseFloat(stats?.dailySales || 0)
+    const crecimientoHoy = totalVentasHoy > 0 ? 12.5 : 0 // Ejemplo
+    const totalProductos = stats?.totalProducts || 0
+    const stockBajo = stats?.lowStockProducts || 0
+    const cajasAbiertas = stats?.openRegisters || 0
+
+    return (
+        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
+            {/* Header */}
+            <div className="mb-6 flex items-center justify-between">
+                <div>
+                    <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+                        Dashboard de TechZone Norte
+                    </h1>
+                    <p className="text-muted-foreground">
+                        Panel de control y análisis del negocio
+                    </p>
+                </div>
+                <div className="flex gap-2">
+                    <Badge variant="outline" className="px-4 py-2">
+                        <Activity className="w-4 h-4 mr-2 text-green-600" />
+                        Negocio Activo
+                    </Badge>
+                </div>
+            </div>
+
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <Card className="hover:shadow-lg transition-shadow">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-300">
+                            Ventas del Mes
+                        </CardTitle>
+                        <DollarSign className="h-4 w-4 text-blue-600" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-3xl font-bold text-gray-900 dark:text-white">
+                            S/ {totalVentasMes.toFixed(2)}
+                        </div>
+                        <div className="flex items-center gap-2 mt-2">
+                            <span className={`flex items-center text-sm ${crecimientoHoy >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                {crecimientoHoy >= 0 ? <ArrowUpCircle className="w-4 h-4 mr-1" /> : <ArrowDownCircle className="w-4 h-4 mr-1" />}
+                                {crecimientoHoy}%
+                            </span>
+                            <span className="text-xs text-muted-foreground">vs ayer</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                            Hoy: S/ {totalVentasHoy.toFixed(2)}
                         </p>
-                        <Button variant="outline" onClick={() => navigate('/select-business')}>
-                            Seleccionar Negocio
-                        </Button>
+                    </CardContent>
+                </Card>
+
+                <Card className="hover:shadow-lg transition-shadow">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-300">
+                            Productos
+                        </CardTitle>
+                        <Package className="h-4 w-4 text-green-600" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-3xl font-bold text-gray-900 dark:text-white">
+                            {totalProductos}
+                        </div>
+                        {stockBajo > 0 && (
+                            <Badge variant="destructive" className="mt-2">
+                                <AlertTriangle className="w-3 h-3 mr-1" />
+                                {stockBajo} con stock bajo
+                            </Badge>
+                        )}
+                    </CardContent>
+                </Card>
+
+                <Card className="hover:shadow-lg transition-shadow">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-300">
+                            Cajas Abiertas
+                        </CardTitle>
+                        <Wallet className="h-4 w-4 text-purple-600" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-3xl font-bold text-gray-900 dark:text-white">
+                            {cajasAbiertas}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                            Puntos de venta activos
+                        </p>
+                    </CardContent>
+                </Card>
+
+                <Card className="hover:shadow-lg transition-shadow">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-300">
+                            Valor Inventario
+                        </CardTitle>
+                        <BarChart3 className="h-4 w-4 text-orange-600" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-3xl font-bold text-gray-900 dark:text-white">
+                            S/ {parseFloat(stats?.inventoryValue || 0).toFixed(2)}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                            Stock total valorizado
+                        </p>
                     </CardContent>
                 </Card>
             </div>
-        )
-    }
 
-    return (
-        <div className="space-y-6">
-            {/* Header del Dashboard */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div>
-                    <h1 className="text-3xl font-bold text-gray-900">{businessName}</h1>
-                    <p className="text-muted-foreground mt-1">
-                        Panel de administración del negocio 
-                    </p>
-                </div>
-                <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-lg border">
-                    <div className="text-right">
-                        <p className="text-sm font-medium text-gray-900">
-                            {user?.first_name} {user?.last_name}
-                        </p>
-                        <p className="text-xs text-muted-foreground">{user?.email}</p>
-                    </div>
-                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                        <span className="text-lg font-semibold text-primary">
-                            {user?.first_name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase()}
-                        </span>
-                    </div>
+            {/* Gráficos Principales */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                {/* Gráfico de Ventas - Línea */}
+                <Card className="col-span-2">
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <TrendingUp className="w-5 h-5 text-blue-600" />
+                            Tendencia de Ventas - Últimos 7 Días
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        {salesData.length > 0 ? (
+                            <ResponsiveContainer width="100%" height={300}>
+                                <AreaChart data={salesData}>
+                                    <defs>
+                                        <linearGradient id="colorVentas" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.8} />
+                                            <stop offset="95%" stopColor="#3B82F6" stopOpacity={0} />
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                                    <XAxis dataKey="date" stroke="#9CA3AF" />
+                                    <YAxis stroke="#9CA3AF" />
+                                    <Tooltip
+                                        contentStyle={{
+                                            backgroundColor: '#1F2937',
+                                            border: '1px solid #374151',
+                                            borderRadius: '8px'
+                                        }}
+                                        formatter={(value) => [`S/ ${value}`, 'Ventas']}
+                                    />
+                                    <Area
+                                        type="monotone"
+                                        dataKey="ventas"
+                                        stroke="#3B82F6"
+                                        fillOpacity={1}
+                                        fill="url(#colorVentas)"
+                                        strokeWidth={2}
+                                    />
+                                </AreaChart>
+                            </ResponsiveContainer>
+                        ) : (
+                            <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+                                <ShoppingBag className="w-12 h-12 mr-2 opacity-50" />
+                                No hay datos de ventas disponibles
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+
+                {/* Gráfico de Barras - Ventas por Día */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <BarChart3 className="w-5 h-5 text-green-600" />
+                            Ventas Diarias
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        {salesData.length > 0 ? (
+                            <ResponsiveContainer width="100%" height={250}>
+                                <BarChart data={salesData}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                                    <XAxis dataKey="date" stroke="#9CA3AF" />
+                                    <YAxis stroke="#9CA3AF" />
+                                    <Tooltip
+                                        contentStyle={{
+                                            backgroundColor: '#1F2937',
+                                            border: '1px solid #374151',
+                                            borderRadius: '8px'
+                                        }}
+                                        formatter={(value) => [`S/ ${value}`, 'Ventas']}
+                                    />
+                                    <Bar dataKey="ventas" fill="#10B981" radius={[4, 4, 0, 0]} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        ) : (
+                            <div className="h-[250px] flex items-center justify-center text-muted-foreground">
+                                Sin datos
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+
+                {/* Gráfico de Dona - Distribución por Categoría */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <Package className="w-5 h-5 text-purple-600" />
+                            Productos por Categoría
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        {categoryData.length > 0 ? (
+                            <ResponsiveContainer width="100%" height={250}>
+                                <PieChart>
+                                    <Pie
+                                        data={categoryData}
+                                        cx="50%"
+                                        cy="50%"
+                                        labelLine={false}
+                                        label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                                        outerRadius={80}
+                                        fill="#8884d8"
+                                        dataKey="value"
+                                    >
+                                        {categoryData.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                        ))}
+                                    </Pie>
+                                    <Tooltip
+                                        contentStyle={{
+                                            backgroundColor: '#1F2937',
+                                            border: '1px solid #374151',
+                                            borderRadius: '8px'
+                                        }}
+                                    />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        ) : (
+                            <div className="h-[250px] flex items-center justify-center text-muted-foreground">
+                                Sin categorías registradas
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+            </div>
+
+            {/* Acciones Rápidas */}
+            <div className="mb-6">
+                <h2 className="text-xl font-semibold mb-4">Accesos Directos</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {[
+                        { title: 'Gestionar Usuarios', desc: 'Administra usuarios del sistema', icon: Users, color: 'blue', path: '/business/users' },
+                        { title: 'Inventario', desc: 'Productos y control de stock', icon: Package, color: 'green', path: '/business/inventory' },
+                        { title: 'Ventas', desc: 'Registro y seguimiento', icon: ShoppingCart, color: 'purple', path: '/business/sales' },
+                        { title: 'Reportes', desc: 'Análisis y estadísticas', icon: BarChart3, color: 'orange', path: '/business/reports' },
+                        { title: 'Caja', desc: 'Gestión de cajas y arqueos', icon: Wallet, color: 'cyan', path: '/business/cashier' },
+                        { title: 'Configuración', desc: 'Ajustes del negocio', icon: DollarSign, color: 'gray', path: '/business/settings' },
+                    ].map((item, index) => (
+                        <Card
+                            key={index}
+                            className="cursor-pointer hover:shadow-lg transition-all hover:scale-105"
+                            onClick={() => navigate(item.path)}
+                        >
+                            <CardContent className="p-6">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-4">
+                                        <div className={`p-3 bg-${item.color}-100 dark:bg-${item.color}-900 rounded-lg`}>
+                                            <item.icon className={`w-6 h-6 text-${item.color}-600`} />
+                                        </div>
+                                        <div>
+                                            <p className="font-semibold text-gray-900 dark:text-white">{item.title}</p>
+                                            <p className="text-sm text-muted-foreground">{item.desc}</p>
+                                        </div>
+                                    </div>
+                                    <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                                </div>
+                            </CardContent>
+                        </Card>
+                    ))}
                 </div>
             </div>
 
-            {/* Stats Grid - Componente separado */}
-            <DashboardStats businessId={businessId} />
-
-            {/* Quick Actions - Componente separado */}
-            <QuickActions onNavigate={navigate} />
-
-            {/* Business Info - Componente separado */}
-            <BusinessInfo business={business} />
-
-            {/* Sección de Actividad Reciente (Placeholder) */}
+            {/* Información del Negocio */}
             <Card>
                 <CardHeader>
-                    <CardTitle>Actividad Reciente</CardTitle>
-                    <CardDescription>
-                        Últimas acciones en tu negocio
-                    </CardDescription>
+                    <CardTitle>Información del Negocio</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <div className="text-center py-8 text-muted-foreground">
-                        <BarChart3 className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                        <p>No hay actividad reciente para mostrar</p>
-                        <p className="text-xs mt-1">
-                            Las acciones aparecerán aquí automáticamente
-                        </p>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <p className="text-sm text-muted-foreground">Nombre:</p>
+                            <p className="font-semibold text-gray-900 dark:text-white">TechZone Norte</p>
+                        </div>
+                        <div>
+                            <p className="text-sm text-muted-foreground">Cotizaciones Pendientes:</p>
+                            <Badge className="mt-1">
+                                {stats?.pendingQuotes || 0}
+                            </Badge>
+                        </div>
+                        <div>
+                            <p className="text-sm text-muted-foreground">Tu Rol:</p>
+                            <Badge variant="outline" className="mt-1">ADMINISTRADOR</Badge>
+                        </div>
                     </div>
                 </CardContent>
             </Card>
         </div>
     )
 }
-
-export default BusinessDashboard

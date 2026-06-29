@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { inventoryAPI } from '@/services/spring.api'
+import { inventoryAPI, getImageUrl } from '@/services/spring.api'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,8 +8,9 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
 import { toast } from 'sonner'
-import { Package, Plus, Search, Edit, Trash2, Loader2, Tag, Upload, X } from 'lucide-react'
+import { Package, Plus, Search, Edit, Trash2, Loader2, Tag, Upload, X, Image as ImageIcon } from 'lucide-react'
 import BulkImport from './BulkImport'
+import ProductImageUpload from '@/components/ProductImageUpload'
 
 export default function ProductsManager() {
     const queryClient = useQueryClient()
@@ -25,7 +26,7 @@ export default function ProductsManager() {
     const [formData, setFormData] = useState({
         name: '', sku: '', barcode: '', description: '',
         price: 0, costPrice: 0, stock: 0, minStock: 5,
-        categoryId: '', unit: 'UNIDAD'
+        categoryId: '', unit: 'UNIDAD', imagePath: ''
     })
 
     // ✅ Debounce de 500ms
@@ -33,7 +34,6 @@ export default function ProductsManager() {
         const timer = setTimeout(() => {
             setDebouncedSearch(searchTerm)
         }, 500)
-
         return () => clearTimeout(timer)
     }, [searchTerm])
 
@@ -52,18 +52,14 @@ export default function ProductsManager() {
         queryFn: async () => {
             try {
                 const params = {}
-
                 if (debouncedSearch && debouncedSearch.trim() !== '') {
                     params.search = debouncedSearch.trim()
                 }
-
                 if (selectedCategory && selectedCategory.trim() !== '') {
                     params.categoryId = selectedCategory
                 }
-
                 const res = await inventoryAPI.products.list(params)
                 const apiData = res.data
-
                 if (apiData?.success && Array.isArray(apiData.data)) {
                     return apiData.data
                 }
@@ -77,10 +73,21 @@ export default function ProductsManager() {
 
     const createMutation = useMutation({
         mutationFn: (data) => inventoryAPI.products.create(data),
-        onSuccess: (response) => {
+        onSuccess: async (response) => {
             const apiData = response.data
             if (apiData?.success) {
                 toast.success('✅ Producto creado')
+
+                // Si hay imagen pendiente, subirla
+                if (formData._pendingImage) {
+                    try {
+                        await inventoryAPI.products.uploadImage(apiData.data.id, formData._pendingImage)
+                        toast.success('✅ Imagen subida')
+                    } catch (err) {
+                        console.error('Error subiendo imagen:', err)
+                    }
+                }
+
                 queryClient.invalidateQueries(['inventory-products'])
                 setIsCreateOpen(false)
                 resetForm()
@@ -119,7 +126,7 @@ export default function ProductsManager() {
     const resetForm = () => setFormData({
         name: '', sku: '', barcode: '', description: '',
         price: 0, costPrice: 0, stock: 0, minStock: 5,
-        categoryId: '', unit: 'UNIDAD'
+        categoryId: '', unit: 'UNIDAD', imagePath: ''
     })
 
     const handleCreate = (e) => {
@@ -163,7 +170,8 @@ export default function ProductsManager() {
             stock: product.stock || 0,
             minStock: product.minStock || 5,
             categoryId: product.categoryId || '',
-            unit: product.unit || 'UNIDAD'
+            unit: product.unit || 'UNIDAD',
+            imagePath: product.imagePath || ''
         })
         setIsEditOpen(true)
     }
@@ -290,9 +298,17 @@ export default function ProductsManager() {
                             )}
                             <CardContent className="p-4 flex flex-col h-full">
                                 <div className="flex justify-center mb-3">
-                                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center group-hover:from-blue-100 group-hover:to-blue-200 transition-all duration-300 group-hover:scale-110">
-                                        <Package className="w-8 h-8 text-blue-600" />
-                                    </div>
+                                    {product.imagePath ? (
+                                        <img
+                                            src={getImageUrl(product.imagePath)}
+                                            alt={product.name}
+                                            className="w-16 h-16 rounded-2xl object-cover border-2 border-gray-100 group-hover:scale-110 transition-transform duration-300"
+                                        />
+                                    ) : (
+                                        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center group-hover:from-blue-100 group-hover:to-blue-200 transition-all duration-300 group-hover:scale-110">
+                                            <Package className="w-8 h-8 text-blue-600" />
+                                        </div>
+                                    )}
                                 </div>
                                 <h3 className="font-semibold text-sm text-center truncate mb-1 group-hover:text-blue-600 transition-colors">
                                     {product.name}
@@ -338,7 +354,7 @@ export default function ProductsManager() {
                 </div>
             )}
 
-            {/* Modales */}
+            {/* Modal CREAR */}
             <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
                 <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
@@ -356,6 +372,21 @@ export default function ProductsManager() {
                                 <Input value={formData.sku} onChange={(e) => setFormData({ ...formData, sku: e.target.value })} required />
                             </div>
                         </div>
+
+                        {/* ✅ Imagen del producto */}
+                        <div className="space-y-2">
+                            <Label>Imagen del Producto</Label>
+                            <p className="text-xs text-muted-foreground">
+                                💡 La imagen se subirá después de crear el producto
+                            </p>
+                            <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
+                                <ImageIcon className="w-8 h-8 mx-auto text-gray-400 mb-2" />
+                                <p className="text-sm text-muted-foreground">
+                                    Podrás agregar la imagen después de crear el producto
+                                </p>
+                            </div>
+                        </div>
+
                         <div className="space-y-2">
                             <Label>Categoría</Label>
                             <select className="w-full h-9 px-3 border rounded-md bg-background"
@@ -396,6 +427,7 @@ export default function ProductsManager() {
                 </DialogContent>
             </Dialog>
 
+            {/* Modal EDITAR */}
             <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
                 <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
@@ -413,6 +445,26 @@ export default function ProductsManager() {
                                 <Input value={formData.sku} onChange={(e) => setFormData({ ...formData, sku: e.target.value })} required />
                             </div>
                         </div>
+
+                        {/* ✅ Imagen del producto - EDITAR */}
+                        {selectedProduct && (
+                            <div className="space-y-2">
+                                <Label>Imagen del Producto</Label>
+                                <ProductImageUpload
+                                    productId={selectedProduct.id}
+                                    currentImage={formData.imagePath}
+                                    onImageUploaded={(data) => {
+                                        setFormData({ ...formData, imagePath: data.filename })
+                                        queryClient.invalidateQueries(['inventory-products'])
+                                    }}
+                                    onImageDeleted={() => {
+                                        setFormData({ ...formData, imagePath: '' })
+                                        queryClient.invalidateQueries(['inventory-products'])
+                                    }}
+                                />
+                            </div>
+                        )}
+
                         <div className="space-y-2">
                             <Label>Categoría</Label>
                             <select className="w-full h-9 px-3 border rounded-md bg-background"
@@ -453,6 +505,7 @@ export default function ProductsManager() {
                 </DialogContent>
             </Dialog>
 
+            {/* Modal ELIMINAR */}
             <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
                 <DialogContent className="max-w-md">
                     <DialogHeader>
@@ -470,6 +523,7 @@ export default function ProductsManager() {
                 </DialogContent>
             </Dialog>
 
+            {/* Modal CARGA MASIVA */}
             <Dialog open={showBulkImport} onOpenChange={setShowBulkImport}>
                 <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>

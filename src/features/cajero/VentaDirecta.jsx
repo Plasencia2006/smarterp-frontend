@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { cashierAPI } from '@/services/cashier.api'
+import { cashierAPI, getImageUrl } from '@/services/cashier.api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -108,7 +108,8 @@ export default function VentaDirecta() {
                     price: product.price || 0,
                     stock: product.stock || 0,
                     barcode: product.barcode || '',
-                    categoryName: product.categoryName || ''
+                    categoryName: product.categoryName || '',
+                    imagePath: product.imagePath || null
                 }))
             } catch (error) {
                 console.error('❌ Error al buscar productos:', error)
@@ -240,7 +241,7 @@ export default function VentaDirecta() {
         console.log('👤 Cliente seleccionado:', customer)
         setSelectedCustomer(customer)
         setCustomerName(customer.name || '')
-        setCustomerDocument(customer.documentNumber || '') 
+        setCustomerDocument(customer.documentNumber || '')
         setCustomerSearch('')
         setShowCustomerDropdown(false)
         toast.success(` Cliente: ${customer.name}`)
@@ -344,6 +345,13 @@ export default function VentaDirecta() {
         { value: 'PLIN', label: 'Plin', icon: Smartphone },
         { value: 'TRANSFERENCIA', label: 'Transferencia', icon: Banknote }
     ]
+
+    // ✅ Función para obtener URL de imagen
+    const getProductImageUrl = (imagePath) => {
+        if (!imagePath) return null
+        // Usar la función exportada
+        return getImageUrl(imagePath)
+    }
 
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
@@ -453,19 +461,50 @@ export default function VentaDirecta() {
                                         {products.map(product => {
                                             const isInCart = cartItems.some(item => item.id === product.id)
                                             const cartQuantity = cartItems.find(item => item.id === product.id)?.quantity || 0
+                                            const imageUrl = getProductImageUrl(product.imagePath)
 
                                             return (
                                                 <div
                                                     key={product.id}
                                                     onClick={() => addToCart(product)}
                                                     className={`p-3 border-2 rounded-lg cursor-pointer transition-all ${product.stock <= 0
-                                                            ? 'opacity-50 cursor-not-allowed bg-gray-100 dark:bg-gray-800 border-gray-200'
-                                                            : isInCart
-                                                                ? 'border-green-500 bg-green-50 dark:bg-green-950/20 hover:border-green-600'
-                                                                : 'border-gray-200 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/20'
+                                                        ? 'opacity-50 cursor-not-allowed bg-gray-100 dark:bg-gray-800 border-gray-200'
+                                                        : isInCart
+                                                            ? 'border-green-500 bg-green-50 dark:bg-green-950/20 hover:border-green-600'
+                                                            : 'border-gray-200 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/20'
                                                         }`}
                                                 >
-                                                    <div className="flex items-center justify-between gap-3">
+                                                    <div className="flex items-center gap-3">
+                                                        {/* ✅ IMAGEN DEL PRODUCTO */}
+                                                        <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800 flex-shrink-0 flex items-center justify-center relative">
+                                                            {imageUrl ? (
+                                                                <>
+                                                                    <img
+                                                                        src={imageUrl}
+                                                                        alt={product.name}
+                                                                        className="w-full h-full object-cover"
+                                                                        onError={(e) => {
+                                                                            console.error('❌ Error cargando imagen:', product.imagePath)
+                                                                            e.target.style.display = 'none'
+                                                                            // Mostrar fallback
+                                                                            const fallback = e.target.parentElement.querySelector('.fallback-icon')
+                                                                            if (fallback) fallback.style.display = 'flex'
+                                                                        }}
+                                                                        onLoad={() => {
+                                                                            console.log('✅ Imagen cargada:', product.name)
+                                                                        }}
+                                                                    />
+                                                                    <div className="fallback-icon hidden w-full h-full absolute inset-0 flex items-center justify-center">
+                                                                        <Package className="w-6 h-6 text-gray-400" />
+                                                                    </div>
+                                                                </>
+                                                            ) : (
+                                                                <div className="w-full h-full flex items-center justify-center">
+                                                                    <Package className="w-6 h-6 text-gray-400" />
+                                                                </div>
+                                                            )}
+                                                        </div>
+
                                                         <div className="flex-1 min-w-0">
                                                             <div className="flex items-center gap-2 mb-1">
                                                                 <p className="font-semibold truncate">
@@ -701,54 +740,82 @@ export default function VentaDirecta() {
                             ) : (
                                 <>
                                     <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                                        {cartItems.map(item => (
-                                            <div key={item.id} className="p-3 border rounded-lg bg-white dark:bg-gray-800">
-                                                <div className="flex items-center justify-between mb-2">
-                                                    <div className="flex-1 min-w-0">
-                                                        <p className="font-medium truncate">{item.name}</p>
-                                                        <p className="text-sm text-muted-foreground">
-                                                            S/ {item.price.toFixed(2)} c/u
+                                        {cartItems.map(item => {
+                                            const imageUrl = getProductImageUrl(item.imagePath)
+
+                                            return (
+                                                <div key={item.id} className="p-3 border rounded-lg bg-white dark:bg-gray-800">
+                                                    <div className="flex items-center gap-3 mb-2">
+                                                        {/* ✅ Miniatura de imagen en carrito */}
+                                                        <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 flex-shrink-0 flex items-center justify-center relative">
+                                                            {imageUrl ? (
+                                                                <>
+                                                                    <img
+                                                                        src={imageUrl}
+                                                                        alt={item.name}
+                                                                        className="w-full h-full object-cover"
+                                                                        onError={(e) => {
+                                                                            e.target.style.display = 'none'
+                                                                            const fallback = e.target.parentElement.querySelector('.fallback-icon')
+                                                                            if (fallback) fallback.style.display = 'flex'
+                                                                        }}
+                                                                    />
+                                                                    <div className="fallback-icon hidden w-full h-full absolute inset-0 flex items-center justify-center">
+                                                                        <Package className="w-5 h-5 text-gray-400" />
+                                                                    </div>
+                                                                </>
+                                                            ) : (
+                                                                <div className="w-full h-full flex items-center justify-center">
+                                                                    <Package className="w-5 h-5 text-gray-400" />
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="font-medium truncate">{item.name}</p>
+                                                            <p className="text-sm text-muted-foreground">
+                                                                S/ {item.price.toFixed(2)} c/u
+                                                            </p>
+                                                        </div>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            onClick={() => removeFromCart(item.id)}
+                                                            className="text-red-600 hover:bg-red-50 h-8 w-8 p-0 flex-shrink-0"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </Button>
+                                                    </div>
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="flex items-center gap-2">
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                onClick={() => updateQuantity(item.id, -1)}
+                                                                disabled={item.quantity <= 1}
+                                                                className="h-8 w-8 p-0"
+                                                            >
+                                                                <Minus className="w-3 h-3" />
+                                                            </Button>
+                                                            <span className="font-bold w-10 text-center text-lg">
+                                                                {item.quantity}
+                                                            </span>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                onClick={() => updateQuantity(item.id, 1)}
+                                                                disabled={item.quantity >= item.stock}
+                                                                className="h-8 w-8 p-0"
+                                                            >
+                                                                <Plus className="w-3 h-3" />
+                                                            </Button>
+                                                        </div>
+                                                        <p className="font-bold text-green-600 text-lg">
+                                                            S/ {(item.price * item.quantity).toFixed(2)}
                                                         </p>
                                                     </div>
-                                                    <Button
-                                                        size="sm"
-                                                        variant="ghost"
-                                                        onClick={() => removeFromCart(item.id)}
-                                                        className="text-red-600 hover:bg-red-50 h-8 w-8 p-0"
-                                                    >
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </Button>
                                                 </div>
-                                                <div className="flex items-center justify-between">
-                                                    <div className="flex items-center gap-2">
-                                                        <Button
-                                                            size="sm"
-                                                            variant="outline"
-                                                            onClick={() => updateQuantity(item.id, -1)}
-                                                            disabled={item.quantity <= 1}
-                                                            className="h-8 w-8 p-0"
-                                                        >
-                                                            <Minus className="w-3 h-3" />
-                                                        </Button>
-                                                        <span className="font-bold w-10 text-center text-lg">
-                                                            {item.quantity}
-                                                        </span>
-                                                        <Button
-                                                            size="sm"
-                                                            variant="outline"
-                                                            onClick={() => updateQuantity(item.id, 1)}
-                                                            disabled={item.quantity >= item.stock}
-                                                            className="h-8 w-8 p-0"
-                                                        >
-                                                            <Plus className="w-3 h-3" />
-                                                        </Button>
-                                                    </div>
-                                                    <p className="font-bold text-green-600 text-lg">
-                                                        S/ {(item.price * item.quantity).toFixed(2)}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        ))}
+                                            )
+                                        })}
                                     </div>
 
                                     {/* Totales */}

@@ -63,6 +63,58 @@ export const cashierAPI = {
 
     // ===== DASHBOARD =====
     getDashboard: () => springApi.get('/cashier/dashboard'),
+
+    // Admin Dashboard
+    getAdminDashboard: () => springApi.get('/admin/cash/dashboard'),
+
+    // Admin Registers History
+    getAdminRegisters: (page, size) => {
+        const params = new URLSearchParams({
+            page: page.toString(),
+            size: size.toString()
+        })
+        return springApi.get(`/admin/cash/registers?${params}`)
+    },
+
+    // Admin Pending Audits
+    getAdminPendingAudits: () => springApi.get('/admin/cash/audits/pending'),
+
+    // Admin Approve Audit
+    approveAudit: (id, notes) => {
+        const params = new URLSearchParams()
+        if (notes) params.append('notes', notes)
+        return springApi.post(`/admin/cash/audits/${id}/approve?${params}`)
+    },
+
+    // Admin Reject Audit
+    rejectAudit: (id, notes) => {
+        const params = new URLSearchParams()
+        if (notes) params.append('notes', notes)
+        return springApi.post(`/admin/cash/audits/${id}/reject?${params}`)
+    },
+
+    // Admin Pending Withdrawals
+    getAdminPendingWithdrawals: () => springApi.get('/admin/cash/withdrawals/pending'),
+
+    // Admin Approve Withdrawal
+    approveWithdrawal: (id, notes) => {
+        const params = new URLSearchParams()
+        if (notes) params.append('notes', notes)
+        return springApi.post(`/admin/cash/withdrawals/${id}/approve?${params}`)
+    },
+
+    // Admin Reject Withdrawal
+    rejectWithdrawal: (id, notes) => {
+        const params = new URLSearchParams()
+        if (notes) params.append('notes', notes)
+        return springApi.post(`/admin/cash/withdrawals/${id}/reject?${params}`)
+    },
+}
+
+// ✅ Helper para obtener URL de imagen de producto
+export const getImageUrl = (filename) => {
+    if (!filename) return null
+    return `http://localhost:8080/api/inventory/products/images/${filename}`
 }
 
 export default cashierAPI

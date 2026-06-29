@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { inventoryAPI, quoteAPI, customerAPI } from '@/services/spring.api'
+import { inventoryAPI, quoteAPI, customerAPI, getImageUrl } from '@/services/spring.api'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
 import { toast } from 'sonner'
-import { Search, Package, Receipt, CheckCircle2, Loader2, X, Lock, User, Star } from 'lucide-react'
+import { Search, Package, Receipt, CheckCircle2, Loader2, X, Lock, User, Star, Clock, Image as ImageIcon } from 'lucide-react'
 
 export default function POSManager() {
     const queryClient = useQueryClient()
@@ -23,7 +23,6 @@ export default function POSManager() {
     const [lastQuote, setLastQuote] = useState(null)
     const [blockedProducts, setBlockedProducts] = useState({})
 
-    // ✅ NUEVOS ESTADOS PARA CLIENTES Y DESCUENTOS
     const [selectedCustomer, setSelectedCustomer] = useState(null)
     const [customerSearch, setCustomerSearch] = useState('')
     const [discountType, setDiscountType] = useState('NONE')
@@ -41,7 +40,6 @@ export default function POSManager() {
         }
     })
 
-    // ✅ Obtener clientes frecuentes
     const { data: frequentCustomers } = useQuery({
         queryKey: ['frequent-customers'],
         queryFn: async () => {
@@ -52,7 +50,6 @@ export default function POSManager() {
         }
     })
 
-    // ✅ Buscar clientes
     const { data: searchedCustomers } = useQuery({
         queryKey: ['search-customers', customerSearch],
         queryFn: async () => {
@@ -76,12 +73,16 @@ export default function POSManager() {
                     const res = await quoteAPI.getProductAvailability(product.id)
                     if (res.data?.success) {
                         const data = res.data.data
+                        console.log(`📦 Producto ${product.name}:`, data)
+
                         if (data.blockedQuantity > 0) {
                             blocked[product.id] = {
                                 totalStock: data.totalStock,
                                 blockedQuantity: data.blockedQuantity,
                                 availableStock: data.availableStock,
-                                isAvailable: data.isAvailable
+                                isBlocked: data.isBlocked,
+                                isAvailable: data.isAvailable,
+                                blockedUntil: data.blockedUntil
                             }
                         }
                     }
@@ -104,10 +105,9 @@ export default function POSManager() {
         if (blockInfo) {
             return blockInfo.availableStock
         }
-        return product.stock
+        return product.stock || 0
     }
 
-    // ✅ Función para seleccionar cliente
     const handleSelectCustomer = (customer) => {
         setSelectedCustomer(customer)
         setCustomerName(customer.name)
@@ -117,14 +117,12 @@ export default function POSManager() {
         toast.success(`Cliente seleccionado: ${customer.name}`)
     }
 
-    // ✅ Limpiar selección de cliente
     const handleClearCustomer = () => {
         setSelectedCustomer(null)
         setCustomerName('')
         setCustomerDocument('')
     }
 
-    // 📝 Crear Cotización
     const createQuoteMutation = useMutation({
         mutationFn: (data) => {
             console.log('🚀 Llamando a API:', data)
@@ -166,7 +164,6 @@ export default function POSManager() {
         }
     })
 
-    // 🔍 Buscar cotización
     const searchQuoteMutation = useMutation({
         mutationFn: (number) => quoteAPI.getByNumber(number),
         onSuccess: (response) => {
@@ -181,7 +178,6 @@ export default function POSManager() {
         }
     })
 
-    // Agregar producto (con validación de stock disponible)
     const addProduct = (product) => {
         const availableStock = getAvailableStock(product)
 
@@ -269,7 +265,6 @@ export default function POSManager() {
         searchQuoteMutation.mutate(quoteNumber.trim())
     }
 
-    // ✅ Calcular totales con descuento
     const subtotal = selectedProducts.reduce((sum, p) => sum + (p.price * p.quantity), 0)
     const discountAmount = discountType === 'PERCENT'
         ? subtotal * (discountValue / 100)
@@ -280,7 +275,6 @@ export default function POSManager() {
 
     return (
         <div className="min-h-screen bg-gray-50">
-            {/* Header con Tabs */}
             <div className="bg-white border-b sticky top-0 z-10">
                 <div className="max-w-7xl mx-auto px-4">
                     <div className="flex items-center justify-between h-16">
@@ -300,7 +294,7 @@ export default function POSManager() {
                                 className="flex items-center gap-2"
                             >
                                 <Receipt className="w-4 h-4" />
-                                Nueva 
+                                Nueva
                             </Button>
                             <Button
                                 variant={activeTab === 'search' ? 'default' : 'outline'}
@@ -318,13 +312,9 @@ export default function POSManager() {
                 </div>
             </div>
 
-            {/* Contenido Principal */}
             <div className="max-w-7xl mx-auto px-4 py-6">
-
-                {/* TAB: Nueva Cotización */}
                 {activeTab === 'new' && (
                     <div className="space-y-6">
-                        {/* Buscador */}
                         <div className="relative max-w-2xl mx-auto">
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                             <Input
@@ -344,7 +334,6 @@ export default function POSManager() {
                             )}
                         </div>
 
-                        {/* Grid de Productos */}
                         {isLoading ? (
                             <div className="flex justify-center py-20">
                                 <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
@@ -371,8 +360,22 @@ export default function POSManager() {
                                             onClick={() => availableStock > 0 && addProduct(product)}
                                         >
                                             <CardContent className="p-4 flex flex-col items-center text-center">
-                                                <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center mb-3 relative">
-                                                    <Package className="w-8 h-8 text-blue-600" />
+                                                {/* ✅ IMAGEN DEL PRODUCTO */}
+                                                <div className="w-16 h-16 rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-3 relative">
+                                                    {product.imagePath ? (
+                                                        <img
+                                                            src={getImageUrl(product.imagePath)}
+                                                            alt={product.name}
+                                                            className="w-full h-full object-cover"
+                                                            onError={(e) => {
+                                                                e.target.style.display = 'none'
+                                                                e.target.nextSibling.style.display = 'flex'
+                                                            }}
+                                                        />
+                                                    ) : null}
+                                                    <div className={`w-full h-full flex items-center justify-center ${product.imagePath ? 'hidden' : ''}`}>
+                                                        <Package className="w-8 h-8 text-blue-600" />
+                                                    </div>
                                                     {isBlocked && (
                                                         <div className="absolute -top-1 -right-1 w-6 h-6 bg-orange-500 rounded-full flex items-center justify-center border-2 border-white">
                                                             <Lock className="w-3 h-3 text-white" />
@@ -393,7 +396,7 @@ export default function POSManager() {
                                                 {isBlocked ? (
                                                     <div className="space-y-1 w-full">
                                                         <Badge className="bg-green-600 text-xs w-full">
-                                                            Disponible: {availableStock}
+                                                            ✅ Disponible: {availableStock}
                                                         </Badge>
                                                         <Badge
                                                             variant="secondary"
@@ -417,7 +420,6 @@ export default function POSManager() {
                             </div>
                         )}
 
-                        {/* Resumen Flotante */}
                         {selectedProducts.length > 0 && (
                             <Card className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-2xl shadow-2xl border-2 border-blue-200 z-20">
                                 <CardContent className="p-4">
@@ -439,16 +441,33 @@ export default function POSManager() {
                                     <div className="max-h-40 overflow-y-auto space-y-2 mb-3 border-t pt-3">
                                         {selectedProducts.map(product => (
                                             <div key={product.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                                                <div className="flex-1 min-w-0 mr-3">
-                                                    <p className="font-medium text-sm truncate">{product.name}</p>
-                                                    <p className="text-xs text-muted-foreground">
-                                                        {product.quantity} × S/ {product.price.toFixed(2)}
-                                                    </p>
+                                                <div className="flex items-center gap-3 flex-1 min-w-0 mr-3">
+                                                    {/* ✅ Miniatura de imagen en lista */}
+                                                    {product.imagePath ? (
+                                                        <img
+                                                            src={getImageUrl(product.imagePath)}
+                                                            alt={product.name}
+                                                            className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
+                                                            onError={(e) => {
+                                                                e.target.style.display = 'none'
+                                                                e.target.nextSibling.style.display = 'flex'
+                                                            }}
+                                                        />
+                                                    ) : null}
+                                                    <div className={`w-10 h-10 rounded-lg bg-gray-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0 ${product.imagePath ? 'hidden' : ''}`}>
+                                                        <Package className="w-5 h-5 text-gray-400" />
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="font-medium text-sm truncate">{product.name}</p>
+                                                        <p className="text-xs text-muted-foreground">
+                                                            {product.quantity} × S/ {product.price.toFixed(2)}
+                                                        </p>
+                                                    </div>
                                                 </div>
                                                 <Button
                                                     variant="ghost"
                                                     size="sm"
-                                                    className="h-8 w-8 p-0 text-red-500"
+                                                    className="h-8 w-8 p-0 text-red-500 flex-shrink-0"
                                                     onClick={() => removeProduct(product.id)}
                                                 >
                                                     <X className="w-4 h-4" />
@@ -470,7 +489,6 @@ export default function POSManager() {
                     </div>
                 )}
 
-                {/* TAB: Buscar Cotización */}
                 {activeTab === 'search' && (
                     <div className="max-w-2xl mx-auto space-y-6">
                         <Card>
@@ -519,8 +537,8 @@ export default function POSManager() {
                                                 Cliente: {searchedQuote.customerName}
                                             </p>
                                         </div>
-                                        <Badge className={searchedQuote.status === 'PENDIENTE_PAGO' ? 'bg-orange-500' : 'bg-green-600'}>
-                                            {searchedQuote.status === 'PENDIENTE_PAGO' ? 'Pendiente' : 'Pagada'}
+                                        <Badge className={searchedQuote.status === 'PENDIENTE' ? 'bg-orange-500' : 'bg-green-600'}>
+                                            {searchedQuote.status}
                                         </Badge>
                                     </div>
 
@@ -546,7 +564,6 @@ export default function POSManager() {
                 )}
             </div>
 
-            {/* ✅ Modal Checkout ACTUALIZADO con Clientes y Descuentos */}
             <Dialog open={isCheckoutOpen} onOpenChange={setIsCheckoutOpen}>
                 <DialogContent className="max-w-2xl" aria-describedby="checkout-dialog-description">
                     <DialogHeader>
@@ -559,8 +576,6 @@ export default function POSManager() {
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4">
-
-                        {/* ✅ SELECCIÓN DE CLIENTE */}
                         <div className="space-y-2">
                             <Label>Cliente *</Label>
                             <div className="flex gap-2">
@@ -576,7 +591,7 @@ export default function POSManager() {
                                             onClick={handleClearCustomer}
                                             className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                                         >
-                                            <X className="h-4 w-4" />
+                                            <X className="h-4 h-4" />
                                         </button>
                                     )}
                                 </div>
@@ -589,7 +604,6 @@ export default function POSManager() {
                                 </Button>
                             </div>
 
-                            {/* ✅ Clientes Frecuentes */}
                             {frequentCustomers && frequentCustomers.length > 0 && !showCustomerSearch && (
                                 <div className="mt-2">
                                     <p className="text-xs text-muted-foreground mb-2">Clientes frecuentes:</p>
@@ -611,7 +625,6 @@ export default function POSManager() {
                                 </div>
                             )}
 
-                            {/* ✅ Búsqueda de Clientes */}
                             {showCustomerSearch && (
                                 <div className="border rounded-lg p-3 max-h-48 overflow-y-auto bg-gray-50">
                                     <Input
@@ -645,7 +658,6 @@ export default function POSManager() {
                             )}
                         </div>
 
-                        {/* ✅ DESCUENTOS */}
                         <div className="space-y-2">
                             <Label>Descuento</Label>
                             <div className="grid grid-cols-3 gap-2">
@@ -683,7 +695,6 @@ export default function POSManager() {
                             )}
                         </div>
 
-                        {/* ✅ RESUMEN CON DESCUENTO */}
                         <div className="p-3 bg-blue-50 rounded-lg border border-blue-200 space-y-2">
                             <div className="flex justify-between text-sm">
                                 <span>Subtotal:</span>
@@ -701,7 +712,6 @@ export default function POSManager() {
                             </div>
                         </div>
 
-                        {/* DNI/RUC */}
                         <div className="space-y-2">
                             <Label>DNI/RUC (Opcional)</Label>
                             <Input
@@ -723,7 +733,6 @@ export default function POSManager() {
                 </DialogContent>
             </Dialog>
 
-            {/* Modal Éxito */}
             <Dialog open={!!lastQuote} onOpenChange={() => setLastQuote(null)}>
                 <DialogContent className="max-w-md text-center" aria-describedby="success-dialog-description">
                     <DialogHeader>
@@ -746,8 +755,9 @@ export default function POSManager() {
                             </p>
                             {lastQuote?.isBlocked && (
                                 <div className="mt-3 p-2 bg-orange-100 rounded border border-orange-300">
-                                    <p className="text-sm text-orange-800 font-medium">
-                                        🔒 Productos bloqueados por 20 minutos
+                                    <p className="text-sm text-orange-800 font-medium flex items-center justify-center gap-2">
+                                        <Clock className="w-4 h-4" />
+                                         Productos bloqueados por 20 minutos
                                     </p>
                                 </div>
                             )}

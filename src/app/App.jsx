@@ -33,6 +33,7 @@ import SalesManager from '@/features/business/SalesManager'
 import ReportsPage from '@/features/business/ReportsPage'
 import SettingsPage from '@/features/business/SettingsPage'
 import AuditPage from '@/features/business/AuditPage'
+import CashManagement from '@/features/business/CashManagement'
 
 // Paneles por Rol Operativo
 import ContadorDashboard from '@/features/contador/ContadorDashboard'
@@ -183,9 +184,15 @@ function AppRoutes() {
                 <Route path="members/*" element={<ProtectedRoute requiredPermission="users.view"><MembersManager /></ProtectedRoute>} />
                 <Route path="inventory/*" element={<ProtectedRoute requiredPermission="inventory.read"><InventoryManager /></ProtectedRoute>} />
                 <Route path="sales/*" element={<ProtectedRoute requiredPermission="sales.view"><SalesManager /></ProtectedRoute>} />
+
+                {/* ✅ NUEVA RUTA: GESTIÓN DE CAJAS */}
+                <Route path="cashier" element={<CashManagement />} />
+                <Route path="cashier/*" element={<CashManagement />} />
+
                 <Route path="reports/*" element={<ProtectedRoute requiredPermission="reports.view"><ReportsPage /></ProtectedRoute>} />
                 <Route path="settings/*" element={<ProtectedRoute requiredPermission="business.update"><SettingsPage /></ProtectedRoute>} />
                 <Route path="audit/*" element={<ProtectedRoute requiredPermission="audit.view"><AuditPage /></ProtectedRoute>} />
+
             </Route>
 
             {/* ✅ CAJERO */}

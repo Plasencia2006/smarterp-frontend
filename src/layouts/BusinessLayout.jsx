@@ -45,7 +45,7 @@ export const BusinessLayout = () => {
                         { id: 'sales', label: 'Ventas', path: '/business/sales', icon: ShoppingCart },
                         { id: 'inventory', label: 'Inventario', path: '/business/inventory', icon: Package },
                         { id: 'cashier', label: 'Caja', path: '/business/cashier', icon: CreditCard },
-                        { id: 'services', label: 'Servicios', path: '/business/services', icon: Wrench },
+                        
                     ]
                 },
                 {
@@ -351,39 +351,6 @@ export const BusinessLayout = () => {
                         {/* ✅ MODO OSCURO - Toggle */}
                         <DarkModeToggle />
 
-                        {/* Notificaciones */}
-                        <div className="relative">
-                            <Button variant="ghost" size="icon" className="relative" onClick={() => setNotificationsOpen(!notificationsOpen)}>
-                                <Bell className={cn("w-5 h-5",
-                                    "text-gray-600 dark:text-gray-300"
-                                )} />
-                                <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-[10px] bg-red-500">3</Badge>
-                            </Button>
-                            {notificationsOpen && (
-                                <div className={cn("absolute right-0 mt-2 w-72 border rounded-lg shadow-lg z-50",
-                                    "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700"
-                                )}>
-                                    <div className={cn("p-3 border-b font-medium text-sm",
-                                        "border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white"
-                                    )}>Notificaciones</div>
-                                    <div className="max-h-64 overflow-y-auto">
-                                        <div className={cn("p-3 cursor-pointer border-b",
-                                            "hover:bg-gray-50 dark:hover:bg-gray-700 border-gray-100 dark:border-gray-700"
-                                        )}>
-                                            <p className={cn("text-sm font-medium",
-                                                "text-gray-900 dark:text-white"
-                                            )}>📦 Stock bajo: Mouse</p>
-                                            <p className="text-xs text-gray-500">Hace 10 min</p>
-                                        </div>
-                                    </div>
-                                    <div className={cn("p-2 border-t text-center",
-                                        "border-gray-200 dark:border-gray-700"
-                                    )}>
-                                        <button onClick={() => setNotificationsOpen(false)} className="text-xs text-primary hover:underline">Cerrar</button>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
 
                         {/* Menú de Usuario */}
                         <div className="relative">
