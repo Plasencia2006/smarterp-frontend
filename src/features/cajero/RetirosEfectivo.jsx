@@ -11,7 +11,7 @@ import { toast } from 'sonner'
 import {
     ArrowLeft, Loader2, CheckCircle2, XCircle, Clock,
     AlertTriangle, Wallet, DollarSign, Send, FileText,
-    TrendingDown, ShieldCheck, ShieldX
+    ShieldCheck, ShieldX
 } from 'lucide-react'
 
 export default function RetirosEfectivo() {
@@ -53,7 +53,7 @@ export default function RetirosEfectivo() {
         refetchInterval: 30000
     })
 
-    // Solicitar retiro
+    // ✅ Solo solicitar retiro (aprobar/rechazar es para admin)
     const requestMutation = useMutation({
         mutationFn: (data) => cashierAPI.requestWithdrawal(data),
         onSuccess: (res) => {
@@ -69,50 +69,6 @@ export default function RetirosEfectivo() {
         },
         onError: (err) => {
             toast.error(err.response?.data?.message || 'Error al solicitar retiro')
-        }
-    })
-
-    // Aprobar retiro
-    const approveMutation = useMutation({
-        mutationFn: ({ id, notes }) => cashierAPI.approveWithdrawal(id, { approvalNotes: notes }),
-        onSuccess: (res) => {
-            if (res.data?.success) {
-                toast.success('✅ Retiro aprobado')
-                queryClient.invalidateQueries(['withdrawals'])
-            }
-        },
-        onError: (err) => {
-            toast.error(err.response?.data?.message || 'Error al aprobar')
-        }
-    })
-
-    // Rechazar retiro
-    const rejectMutation = useMutation({
-        mutationFn: ({ id, notes }) => cashierAPI.rejectWithdrawal(id, { rejectionNotes: notes }),
-        onSuccess: (res) => {
-            if (res.data?.success) {
-                toast.success('Retiro rechazado')
-                queryClient.invalidateQueries(['withdrawals'])
-            }
-        },
-        onError: (err) => {
-            toast.error(err.response?.data?.message || 'Error al rechazar')
-        }
-    })
-
-    // Completar retiro
-    const completeMutation = useMutation({
-        mutationFn: (id) => cashierAPI.completeWithdrawal(id),
-        onSuccess: (res) => {
-            if (res.data?.success) {
-                toast.success('✅ Retiro completado - Dinero enviado a caja fuerte')
-                queryClient.invalidateQueries(['withdrawals'])
-                queryClient.invalidateQueries(['cajero-dashboard'])
-                queryClient.invalidateQueries(['exceeds-limit'])
-            }
-        },
-        onError: (err) => {
-            toast.error(err.response?.data?.message || 'Error al completar')
         }
     })
 
@@ -137,22 +93,6 @@ export default function RetirosEfectivo() {
             reason: reason.trim(),
             destination
         })
-    }
-
-    const handleApprove = (withdrawal) => {
-        const notes = prompt('Notas de aprobación (opcional):') || 'Aprobado'
-        approveMutation.mutate({ id: withdrawal.id, notes })
-    }
-
-    const handleReject = (withdrawal) => {
-        const notes = prompt('Motivo del rechazo:')
-        if (!notes) return
-        rejectMutation.mutate({ id: withdrawal.id, notes })
-    }
-
-    const handleComplete = (withdrawal) => {
-        if (!confirm(`¿Confirmas que el dinero fue entregado a ${withdrawal.destination}?`)) return
-        completeMutation.mutate(withdrawal.id)
     }
 
     const getStatusBadge = (status) => {
@@ -280,7 +220,7 @@ export default function RetirosEfectivo() {
                     </CardContent>
                 </Card>
 
-                {/* Lista de retiros */}
+                {/* Lista de retiros - SOLO VISUALIZACIÓN PARA CAJERO */}
                 <Card>
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
@@ -320,37 +260,19 @@ export default function RetirosEfectivo() {
                                                     </p>
                                                 </div>
                                             </div>
+                                            {/* ✅ CAJERO NO PUEDE APROBAR/RECHAZAR - Solo ve el estado */}
                                             <div className="flex flex-col gap-2">
                                                 {w.status === 'SOLICITADO' && (
-                                                    <>
-                                                        <Button
-                                                            size="sm"
-                                                            onClick={() => handleApprove(w)}
-                                                            className="bg-green-600 hover:bg-green-700"
-                                                        >
-                                                            <ShieldCheck className="w-4 h-4 mr-1" />
-                                                            Aprobar
-                                                        </Button>
-                                                        <Button
-                                                            size="sm"
-                                                            variant="outline"
-                                                            onClick={() => handleReject(w)}
-                                                            className="text-red-600"
-                                                        >
-                                                            <ShieldX className="w-4 h-4 mr-1" />
-                                                            Rechazar
-                                                        </Button>
-                                                    </>
+                                                    <Badge variant="outline" className="text-yellow-600 border-yellow-600">
+                                                        <Clock className="w-3 h-3 mr-1" />
+                                                        Pendiente de aprobación
+                                                    </Badge>
                                                 )}
                                                 {w.status === 'APROBADO' && (
-                                                    <Button
-                                                        size="sm"
-                                                        onClick={() => handleComplete(w)}
-                                                        className="bg-blue-600 hover:bg-blue-700"
-                                                    >
-                                                        <CheckCircle2 className="w-4 h-4 mr-1" />
-                                                        Completar
-                                                    </Button>
+                                                    <Badge variant="outline" className="text-blue-600 border-blue-600">
+                                                        <ShieldCheck className="w-3 h-3 mr-1" />
+                                                        Esperando completar
+                                                    </Badge>
                                                 )}
                                             </div>
                                         </div>
