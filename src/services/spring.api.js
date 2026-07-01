@@ -1,8 +1,9 @@
 import axios from 'axios'
 
-const SPRING_API_URL = import.meta.env.VITE_SPRING_API || 'http://localhost:8080/api'
-const TOKEN_KEY = import.meta.env.VITE_TOKEN_KEY || 'smart_erp_token'
-const BUSINESS_KEY = import.meta.env.VITE_BUSINESS_KEY || 'smart_erp_business'
+// URLs de producción (Railway)
+const SPRING_API_URL = 'https://smarterp-api-production.up.railway.app/api'
+const TOKEN_KEY = 'smart_erp_token'
+const BUSINESS_KEY = 'smart_erp_business'
 
 const springApi = axios.create({
     baseURL: SPRING_API_URL,
