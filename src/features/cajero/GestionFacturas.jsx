@@ -17,14 +17,13 @@ import { useNavigate } from 'react-router-dom'
 export default function GestionFacturas() {
     const navigate = useNavigate()
     const [filters, setFilters] = useState({
-        startDate: new Date().toISOString().split('T')[0],  // Hoy por defecto
+        startDate: new Date().toISOString().split('T')[0],
         endDate: new Date().toISOString().split('T')[0],
         invoiceNumber: '',
         customerName: '',
         paymentMethod: ''
     })
 
-    // ✅ Cargar facturas automáticamente al montar el componente
     const { data: invoices, isLoading, refetch } = useQuery({
         queryKey: ['invoices', filters],
         queryFn: async () => {
@@ -33,8 +32,8 @@ export default function GestionFacturas() {
             console.log('📄 Respuesta de facturas:', res.data)
             return res.data?.success ? res.data.data : []
         },
-        enabled: true,  // ✅ Cargar automáticamente
-        staleTime: 5000  // Cache por 5 segundos
+        enabled: true,
+        staleTime: 5000
     })
 
     const handleSearch = () => {
@@ -63,14 +62,14 @@ export default function GestionFacturas() {
         }
 
         try {
-            console.log('📡 Llamando a cashierAPI.generateInvoicePdf...')
+            console.log('📡 Generando PDF de factura...')
 
-            // Hacer la petición manualmente para más control
-            const response = await fetch(`http://localhost:8080/api/sales/quotes/${invoice.id}/invoice/pdf`, {
+            // ✅ USAR URL DE PRODUCCIÓN
+            const response = await fetch(`https://smarterp-api-production.up.railway.app/api/sales/quotes/${invoice.id}/invoice/pdf`, {
                 method: 'GET',
                 headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                    'X-Business-ID': localStorage.getItem('businessId') || ''
+                    'Authorization': `Bearer ${localStorage.getItem('smart_erp_token')}`,
+                    'X-Business-ID': JSON.parse(localStorage.getItem('smart_erp_business') || '{}')?.id || ''
                 }
             })
 
@@ -84,29 +83,23 @@ export default function GestionFacturas() {
                 throw new Error(`HTTP ${response.status}: ${errorText}`)
             }
 
-            // Obtener el blob
             const blob = await response.blob()
             console.log('📊 Blob size:', blob.size, 'bytes')
             console.log('📊 Blob type:', blob.type)
 
-            // Verificar si es un PDF válido
             if (blob.size === 0) {
                 console.error('❌ El blob está vacío')
                 toast.error('El PDF generado está vacío. Revisa el backend.')
                 return
             }
 
-            // Verificar que sea PDF
             if (!blob.type.includes('application/pdf') && blob.size > 0) {
                 console.warn('⚠️ El blob no es application/pdf pero tiene datos')
-                // Intentar forzar como PDF
             }
 
-            // Crear URL
             const url = window.URL.createObjectURL(blob)
             console.log('🔗 URL generada:', url)
 
-            // Intentar abrir
             const newWindow = window.open(url, '_blank')
 
             if (!newWindow) {
@@ -117,7 +110,6 @@ export default function GestionFacturas() {
             console.log('✅ PDF abierto en nueva pestaña')
             toast.success('Factura cargada. Si no se ve, revisa la nueva pestaña.')
 
-            // Limpiar URL después de un tiempo
             setTimeout(() => {
                 window.URL.revokeObjectURL(url)
             }, 60000)
@@ -153,14 +145,14 @@ export default function GestionFacturas() {
         }
 
         try {
-            console.log('📡 Llamando a generateInvoicePdf para imprimir...')
+            console.log('📡 Generando PDF para impresión...')
 
-            // Hacer la petición manualmente para más control
-            const response = await fetch(`http://localhost:8080/api/sales/quotes/${invoice.id}/invoice/pdf`, {
+            // ✅ USAR URL DE PRODUCCIÓN
+            const response = await fetch(`https://smarterp-api-production.up.railway.app/api/sales/quotes/${invoice.id}/invoice/pdf`, {
                 method: 'GET',
                 headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                    'X-Business-ID': localStorage.getItem('businessId') || ''
+                    'Authorization': `Bearer ${localStorage.getItem('smart_erp_token')}`,
+                    'X-Business-ID': JSON.parse(localStorage.getItem('smart_erp_business') || '{}')?.id || ''
                 }
             })
 
@@ -173,23 +165,19 @@ export default function GestionFacturas() {
                 throw new Error(`HTTP ${response.status}: ${errorText}`)
             }
 
-            // Obtener el blob
             const blob = await response.blob()
             console.log('📊 Blob size:', blob.size, 'bytes')
             console.log('📊 Blob type:', blob.type)
 
-            // Verificar si está vacío
             if (blob.size === 0) {
                 console.error('❌ El blob está vacío')
                 toast.error('El PDF está vacío. Revisa el backend.')
                 return
             }
 
-            // Crear URL
             const url = window.URL.createObjectURL(blob)
             console.log('🔗 URL generada:', url)
 
-            // Abrir ventana para imprimir
             const printWindow = window.open(url, '_blank', 'width=800,height=600')
 
             if (!printWindow) {
@@ -200,29 +188,20 @@ export default function GestionFacturas() {
             console.log('✅ Ventana de impresión abierta')
             toast.success('Abriendo diálogo de impresión...')
 
-            // Esperar a que cargue el PDF y luego imprimir
             printWindow.onload = () => {
                 console.log('📄 PDF cargado en ventana de impresión')
                 setTimeout(() => {
                     printWindow.focus()
                     printWindow.print()
                     console.log('🖨️ Imprimiendo...')
-
-                    // Cerrar después de imprimir (opcional)
-                    // setTimeout(() => {
-                    //     printWindow.close()
-                    //     window.URL.revokeObjectURL(url)
-                    // }, 1000)
                 }, 500)
             }
 
-            // Manejar error de carga
             printWindow.onerror = () => {
                 console.error('❌ Error al cargar el PDF en la ventana de impresión')
                 toast.error('Error al cargar el PDF para impresión')
             }
 
-            // Limpiar URL después de 1 minuto
             setTimeout(() => {
                 window.URL.revokeObjectURL(url)
             }, 60000)
@@ -248,7 +227,6 @@ export default function GestionFacturas() {
         }
     }
 
-    // Calcular totales
     const totalFacturas = invoices?.length || 0
     const totalMonto = invoices?.reduce((sum, inv) => sum + (inv.total || 0), 0) || 0
 
@@ -266,7 +244,6 @@ export default function GestionFacturas() {
                     </div>
                 </div>
 
-                {/* Resumen */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <Card>
                         <CardContent className="p-6">
@@ -305,7 +282,6 @@ export default function GestionFacturas() {
                     </Card>
                 </div>
 
-                {/* Filtros */}
                 <Card>
                     <CardHeader>
                         <div className="flex items-center justify-between">
@@ -388,7 +364,6 @@ export default function GestionFacturas() {
                     </CardContent>
                 </Card>
 
-                {/* Resultados */}
                 <Card>
                     <CardHeader>
                         <CardTitle>
